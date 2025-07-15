@@ -1,4 +1,3 @@
-project_summary_md = """
 # Assembler Project Summary – Specification & Task Breakdown
 
 ## 📌 Project Name
@@ -117,6 +116,76 @@ Create `.as` test files:
   - Duplicate labels
 
 ---
+
+## 🧩 Additional Implementation Notes
+
+### 1. Instruction Encoding
+- Each instruction starts with a **10-bit word**, encoded in a custom base-4 format.
+- The **first word** includes:
+  - Opcode (4 bits)
+  - Addressing mode for source and destination (2 bits each)
+  - A/R/E flags (2 bits)
+
+### 2. Addressing Modes Details
+- **0 – Immediate**: `#5` → value encoded in next word.
+- **1 – Direct**: label → address resolved from symbol table.
+- **2 – Matrix Access**: `LABEL[rX][rY]` → 2 extra words encoded with register indices and base address.
+- **3 – Register Direct**: `r0` to `r7` → encoded directly.
+
+### 3. A/R/E Bits
+- Each code word includes two bits indicating:
+  - `00` – Absolute (A)
+  - `10` – Relocatable (R)
+  - `01` – External (E)
+
+### 4. Macro Expansion Rules
+- Macros start with `mcro` and end with `mcroend`.
+- No nested macros.
+- Macro names must not clash with:
+  - Opcodes (e.g. `mov`)
+  - Directives (e.g. `.data`, `.string`)
+- Macro expansion must be done before the first assembler pass.
+
+### 5. Symbol Table Management
+- Use a linked list or dynamic structure to manage labels.
+- Label properties:
+  - Name
+  - Address
+  - Type: `code`, `data`, `entry`, `external`
+
+### 6. Memory Layout
+- Memory starts at address **100 (decimal)**.
+- All code is placed first, followed by data.
+- Final `.ob` file includes:
+  - Instruction section
+  - Then data section
+  - All in base-4 format with addresses
+
+### 7. Error Formatting & Detection
+- Must report line number for each error.
+- Report **multiple errors per file**, not just the first.
+- Error types include:
+  - Illegal label name (e.g. starting with number)
+  - Duplicate label definitions
+  - Undefined symbols
+  - Misused opcodes or directives
+  - Incorrect operand count/type
+- If errors exist, **no output files should be generated**.
+
+### 8. Output Files Overview
+- `.am` – Macro-expanded input source
+- `.ob` – Machine code in base-4, code followed by data
+- `.ent` – All `.entry` labels with final addresses
+- `.ext` – All references to `.extern` symbols with code locations
+
+### 9. Assumptions (Allowed Simplifications)
+- Each macro is defined and used in the same file.
+- Macro definitions are always syntactically correct.
+- Labels appear at the start of a line and are properly formatted.
+- Each line is ≤ 80 characters (excluding `\\n`).
+
+---
+
 
 ## ⚙️ Compilation & Usage
 

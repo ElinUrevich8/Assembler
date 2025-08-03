@@ -1,12 +1,13 @@
-mcro A
+mcro LOOP
     inc r1
-mcroend
-
-mcro B
-    A
     dec r2
 mcroend
 
-START:  mov r3, r2
-        B
+mcro PRINT
+    prn r3
+mcroend
+
+START:  mov r4, r5
+        LOOP
+        PRINT
         stop

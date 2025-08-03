@@ -35,6 +35,7 @@ static void init_macro_table(MacroTable *table);
 static int add_macro(MacroTable *table, const char *name, char *content);
 static char *get_macro_content(MacroTable *table, const char *name);
 static void free_macro_table(MacroTable *table);
+static int expand_macro_content(MacroTable *table, const char *content, FILE *output, int line_number, int *error);
 
 /* Simple hash function */
 static unsigned int hash(const char *str) {
@@ -153,6 +154,83 @@ static void free_macro_table(MacroTable *table) {
         i++;
     }
 }
+
+/* Helper function to recursively expand macro content in nested macros */
+static int expand_macro_content(MacroTable *table, const char *content, FILE *output, int line_number, int *error) {
+    char *content_copy = strdup(content); /* Copy content to avoid modifying original */
+    char *line = content_copy;
+    char *next_line;
+    char *trimmed;
+    char *end;
+    char *macro_content;
+
+    if (!content_copy) {
+        fprintf(stderr, "Error(line %d): Memory allocation failed for macro content copy\n", line_number);
+        *error = 1;
+        return 0;
+    }
+
+    while (line && *line) {
+        /* Find the next newline */
+        next_line = strchr(line, '\n');
+        if (next_line) {
+            *next_line = '\0';
+            next_line++;
+        }
+
+        /* Trim leading and trailing whitespace */
+        trimmed = line;
+        while (isspace(*trimmed)) trimmed++;
+        end = trimmed + strlen(trimmed) - 1;
+        while (end > trimmed && isspace(*end)) *end-- = '\0';
+
+        if (strlen(trimmed) > 0) {
+            /* Check if trimmed line is a macro */
+            macro_content = get_macro_content(table, trimmed);
+            if (macro_content) {
+                fprintf(stderr, "Debug: Expanding nested macro '%s' at line %d\n", trimmed, line_number);
+                /* Recursively expand nested macro */
+                if (!expand_macro_content(table, macro_content, output, line_number, error)) {
+                    free(content_copy);
+                    return 0;
+                }
+            } else {
+                /* Write the original line (including leading spaces) */
+                fprintf(stderr, "Debug: Writing macro line '%s' at line %d\n", line, line_number);
+                if (fputs(line, output) == EOF) {
+                    fprintf(stderr, "Error(line %d): Failed to write macro line to output file\n", line_number);
+                    *error = 1;
+                    free(content_copy);
+                    return 0;
+                }
+                /* Add newline if it was present */
+                if (next_line || line[strlen(line)] == '\n') {
+                    if (fputc('\n', output) == EOF) {
+                        fprintf(stderr, "Error(line %d): Failed to write newline to output file\n", line_number);
+                        *error = 1;
+                        free(content_copy);
+                        return 0;
+                    }
+                }
+            }
+        } else if (next_line || line[strlen(line)] == '\n') {
+            /* Write empty line */
+            fprintf(stderr, "Debug: Writing empty macro line at line %d\n", line_number);
+            if (fputc('\n', output) == EOF) {
+                fprintf(stderr, "Error(line %d): Failed to write empty macro line to output file\n", line_number);
+                *error = 1;
+                free(content_copy);
+                return 0;
+            }
+        }
+
+        line = next_line;
+    }
+
+    free(content_copy);
+    return 1;
+}
+
 
 /* Main preassembler function */
 int preassemble(const char *input_filename, const char *output_filename) {
@@ -380,12 +458,11 @@ int preassemble(const char *input_filename, const char *output_filename) {
             fprintf(stderr, "Debug: get_macro_content returned for '%s' at line %d\n", trimmed, line_number);
             if (content) {
                 fprintf(stderr, "Debug: Expanding macro '%s' at line %d\n", trimmed, line_number);
-                if (fputs(content, output) == EOF) {
-                    fprintf(stderr, "Error(line %d): Failed to write macro content to output file\n", line_number);
+                if (!expand_macro_content(&macro_table, content, output, line_number, &error)) {
+                    fprintf(stderr, "Error(line %d): Failed to expand macro content\n", line_number);
                     error = 1;
                     break;
                 }
-                fprintf(stderr, "Debug: Wrote macro content: %s\n", content);
             } else {
                 fprintf(stderr, "Debug: Writing non-macro line %d: %s\n", line_number, line);
                 if (fputs(line, output) == EOF) {
@@ -410,7 +487,7 @@ int preassemble(const char *input_filename, const char *output_filename) {
                 break;
             }
             fprintf(stderr, "Debug: After fflush for line %d, continuing loop\n", line_number);
-        }
+            }
     }    
 
     if (in_macro) {

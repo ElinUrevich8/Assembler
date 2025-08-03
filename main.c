@@ -1,4 +1,3 @@
-
 #include <stdio.h>
 #include <string.h>
 #include "preassembler.h"
@@ -42,8 +41,17 @@ int main(int argc, char *argv[]) {
     }
 
     for (i = 1; i < argc; i++) {
-        /* Construct input filename */
-        sprintf(input_file, "%s.as", argv[i]);
+        /* Validate input filename extension */
+        size_t len = strlen(argv[i]);
+        if (len < 3 || strcmp(argv[i] + len - 3, ".as") != 0) {
+            fprintf(stderr, "Error: Input file '%s' does not have .as extension\n", argv[i]);
+            success = 0;
+            continue;
+        }
+
+        /* Use input filename as provided */
+        strncpy(input_file, argv[i], MAX_FILENAME_LENGTH - 1);
+        input_file[MAX_FILENAME_LENGTH - 1] = '\0';
         printf("Processing file: %s\n", input_file);
 
         if (!process_file(input_file)) {

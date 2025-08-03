@@ -10,4 +10,4 @@ assembler: main.c preassembler.c
 	$(CC) $(CFLAGS) -o assembler main.c preassembler.c
 
 clean:
-	rm -f *.o assembler
+	rm -f *.o assembler filesamples/*.o filesamples/*.am

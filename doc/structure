@@ -1,0 +1,41 @@
+#TODO - convert this to english
+assembler-project/
+├─ README.md
+├─ Makefile
+├─ include/                ← כל קובצי .h שחשובים ליותר מקובץ אחד
+│  ├─ defaults.h           ← קבועים גלובליים + fallback-bool
+│  ├─ nameset.h            ← Hash-set כללי (מחרוזות בלבד)
+│  ├─ macro.h              ← API של טבלת-המקרו (מבוסס nameset)
+│  ├─ preassembler.h       ← פונקציה ציבורית: preassemble()
+│  ├─ assembler.h          ← ממשק high-level: assemble_file()
+│  ├─ pass1.h, pass2.h     ← ממשקי המעברים (private ל־src, אך נוח כאן)
+│  ├─ codeimg.h            ← וקטור מילות קוד/נתונים + helpers
+│  ├─ symbols.h            ← טבלת סמלים (מבוסס nameset)
+│  ├─ encoding.h           ← בניית Word ראשון, Base-4, וכו
+│  ├─ errors.h             ← אגירת שגיאות והרצה בטוחה
+│  └─ output.h             ← כתיבת .ob/.ent/.ext
+│
+├─ src/                    ← קוד C “אמיתי”
+│  ├─ main.c               ← parser CLI → קורא assemble_file()
+│  ├─ nameset.c            ← מימוש ה-hash-set
+│  ├─ macro.c              ← הגדרת/חיפוש מקרו
+│  ├─ preassembler.c       ← קורא .as → יוצר .am; ממלא NameSet
+│  ├─ assembler.c          ← glue: preassemble → pass1 → pass2
+│  ├─ pass1.c              ← סריקה ראשונה; בונה symbol + data image
+│  ├─ pass2.c              ← סריקה שנייה; פותר סמלים
+│  ├─ codeimg.c            ← push_word, relocate_data, …
+│  ├─ symbols.c            ← עטיפה סביב nameset לטבלת-סמלים
+│  ├─ encoding.c           ← build_first_word(), print_base4()
+│  ├─ errors.c             ← רשימת Error + pretty-print
+│  └─ output.c             ← כותב קבצי פלט אם לא היו שגיאות
+│
+├─ tests/                  ← קבצי .as לדוגמה + expected.ob/.ext/.ent
+│  ├─ legal1.as
+│  ├─ legal2.as
+│  ├─ error_duplicate_label.as
+│  └─ run_tests.sh         ← מריץ make && diff מול result-expected
+│
+├─ build/                  ← קבצי .o ובינרי סופי “assembler”
+│  (נוצר אוטומטית על ידי ה-Makefile; אפשר לעשות `make clean`)
+│
+└─ docs/ (אופציונלי)      ← מסמכי עיצוב PDF או Markdown

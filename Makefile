@@ -1,4 +1,3 @@
-<<<<<<< HEAD
 #==================================================
 # File: Makefile
 # Author: Elin Urevich
@@ -33,18 +32,3 @@ clean:
 
 test: assembler
 	python3 ./tests/run_test.py
-=======
-#==================================================
-# File: Makefile
-# Author: Elin Urevich
-# Purpose: Makefile for Assembler Program.
-#==================================================
-CC = gcc
-CFLAGS = -Wall -ansi -pedantic
-
-assembler: main.c preassembler.c
-	$(CC) $(CFLAGS) -o assembler main.c preassembler.c
-
-clean:
-	rm -f *.o assembler
->>>>>>> origin/main

@@ -18,8 +18,8 @@ assembler: $(OBJS)
 	$(CC) $(CFLAGS) $^ -o $@
 
 # ------------ pattern rule: .c → build/%.o -------------------------------
-# • single implicit rule (no second rule for 'build')
-# • first command makes sure the directory exists
+# first command makes sure the directory exists
+# single implicit rule (no second rule for 'build')
 $(OBJDIR)/%.o: src/%.c
 	@mkdir -p $(dir $@)
 	$(CC) $(CFLAGS) -c $< -o $@

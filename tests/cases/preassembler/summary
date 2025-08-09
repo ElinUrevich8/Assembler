@@ -1,0 +1,17 @@
+# Tests of stage 1: the preassembler functionality
+# --------------Expected success-------------------
+# 1. Regular macro definition
+# 2. Multiple Macros: Test multiple non-nested macros in one file.
+# 3. Empty Macro: Test a macro with no content.
+
+# --------------Expected error-------------------
+# 4. Invalid Macro Name: Test reserved words
+# 5. Invalid Macro Name: Invalid characters in the macro name (in macrodef).
+# 6. Invalid Macro Name: Invalid characters in the macro name (in macroend).
+# 7. Long Lines: Test lines exceeding 80 characters.
+# 8. Invalid Macro Name: Names exceeding 30 characters.
+# 9. Duplicate Macros: Test redefining a macro with the same name. 
+
+# --------------Assumptions-------------------
+# Unclosed Macro: Test a macro definition missing macroend.
+# Empty File: Test an empty input file or one with only whitespace.

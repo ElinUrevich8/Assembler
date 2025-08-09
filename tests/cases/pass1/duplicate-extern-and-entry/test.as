@@ -1,0 +1,2 @@
+.extern EXT
+.entry EXT

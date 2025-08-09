@@ -2,9 +2,18 @@
 #include <string.h>
 #include <ctype.h>
 #include "pass1.h"
-#include "encoding.h"   /* parse .data/.string + estimate instruction size */
+#include "encoding.h"   /* .data/.string parsers + size estimator */
 
-/* --- small local helpers ------------------------------------------------ */
+
+/* --- small local helpers (C90-friendly) -------------------------------- */
+
+/* Use a different name to avoid clashing with any starts_with in headers. */
+static int has_prefix(const char *s, const char *prefix) {
+    while (*prefix) {
+        if (*s++ != *prefix++) return 0;
+    }
+    return 1;
+}
 
 /* Trim leading whitespace; return pointer to first non-space. */
 static const char* ltrim(const char *p) {
@@ -23,13 +32,16 @@ static bool empty_or_comment(const char *p) {
    On invalid label syntax, writes error and returns NULL. */
 static const char* read_optional_label(const char *p, char *out, size_t cap,
                                        Errors *errs, int lineno) {
-    const char *s = ltrim(p);
-    const char *colon = strchr(s, ':');
+    const char *s;
+    const char *colon;
+    const char *after_id;
+    size_t n;
+
+    s = ltrim(p);
+    colon = strchr(s, ':');
     if (!colon) return p; /* no label */
 
     /* Make sure chars before ':' form a valid symbol. */
-    char name[128];
-    const char *after_id;
     if (!isalpha((unsigned char)*s) && *s != '_') return p; /* not a label */
     after_id = s + 1;
     while (isalnum((unsigned char)*after_id) || *after_id == '_') after_id++;
@@ -37,7 +49,7 @@ static const char* read_optional_label(const char *p, char *out, size_t cap,
     /* If the ':' we saw isn’t right after the identifier, then it’s not a label. */
     if (after_id != colon) return p;
 
-    size_t n = (size_t)(colon - s);
+    n = (size_t)(colon - s);
     if (n >= cap) n = cap - 1;
     memcpy(out, s, n);
     out[n] = '\0';
@@ -46,7 +58,8 @@ static const char* read_optional_label(const char *p, char *out, size_t cap,
 
 /* Push N placeholder words into code image (for size reservation). */
 static void push_placeholders(CodeImg *code, int n, int lineno) {
-    for (int i = 0; i < n; ++i) {
+    int i;
+    for (i = 0; i < n; ++i) {
         codeimg_push_word(code, 0, lineno);
     }
 }
@@ -68,36 +81,38 @@ static void init_result(Pass1Result *r) {
 static void handle_directive(const char *p, const char *label,
                              Pass1Result *r, int lineno) {
     /* .data */
-    if (starts_with(p, ".data")) {
+    if (has_prefix(p, ".data")) {
+        int pushed;
         if (label && *label) {
             if (!symbols_define(r->symbols, label, r->dc, SYM_DATA, lineno, &r->errors))
                 r->ok = false;
         }
-        int pushed = parse_and_push_data_operands(p + 5, &r->data, &r->errors, lineno);
+        pushed = parse_and_push_data_operands(p + 5, &r->data, &r->errors, lineno);
         if (pushed < 0) { r->ok = false; return; }
         r->dc += pushed;
         return;
     }
 
     /* .string */
-    if (starts_with(p, ".string")) {
+    if (has_prefix(p, ".string")) {
+        int pushed;
         if (label && *label) {
             if (!symbols_define(r->symbols, label, r->dc, SYM_DATA, lineno, &r->errors))
                 r->ok = false;
         }
-        int pushed = parse_and_push_string(p + 7, &r->data, &r->errors, lineno);
+        pushed = parse_and_push_string(p + 7, &r->data, &r->errors, lineno);
         if (pushed < 0) { r->ok = false; return; }
         r->dc += pushed;
         return;
     }
 
     /* .extern */
-    if (starts_with(p, ".extern")) {
+    if (has_prefix(p, ".extern")) {
+        char name[128];
         if (label && *label) {
             errors_addf(&r->errors, lineno, "label before .extern is illegal");
             r->ok = false;
         }
-        char name[128];
         if (!parse_symbol_name(p + 7, name, sizeof name)) {
             errors_addf(&r->errors, lineno, "expected symbol after .extern");
             r->ok = false;
@@ -109,12 +124,12 @@ static void handle_directive(const char *p, const char *label,
     }
 
     /* .entry */
-    if (starts_with(p, ".entry")) {
+    if (has_prefix(p, ".entry")) {
+        char name[128];
         if (label && *label) {
             errors_addf(&r->errors, lineno, "label before .entry is illegal");
             r->ok = false;
         }
-        char name[128];
         if (!parse_symbol_name(p + 6, name, sizeof name)) {
             errors_addf(&r->errors, lineno, "expected symbol after .entry");
             r->ok = false;
@@ -132,6 +147,8 @@ static void handle_directive(const char *p, const char *label,
 /* Parse and account for an instruction (no symbol resolution here). */
 static void handle_instruction(const char *p, const char *label,
                                Pass1Result *r, int lineno) {
+    EncodedInstrSize sz;
+
     if (label && *label) {
         if (!symbols_define(r->symbols, label, r->ic, SYM_CODE, lineno, &r->errors)) {
             r->ok = false;
@@ -139,7 +156,6 @@ static void handle_instruction(const char *p, const char *label,
         }
     }
 
-    EncodedInstrSize sz;
     if (!encoding_estimate_size(p, &sz, &r->errors, lineno)) {
         r->ok = false;
         return;
@@ -152,11 +168,15 @@ static void handle_instruction(const char *p, const char *label,
 
 /* Process one source line from the .am file. */
 static void handle_line(char *line, Pass1Result *r, int lineno) {
-    const char *p = line;
+    const char *p;
+    char label[128];
+    const char *after_label;
+
+    p = line;
     if (empty_or_comment(p)) return;
 
-    char label[128] = {0};
-    const char *after_label = read_optional_label(p, label, sizeof(label), &r->errors, lineno);
+    label[0] = '\0';
+    after_label = read_optional_label(p, label, sizeof(label), &r->errors, lineno);
     if (!after_label) { r->ok = false; return; }
 
     p = ltrim(after_label);
@@ -181,17 +201,20 @@ static void handle_line(char *line, Pass1Result *r, int lineno) {
 
 /* Run the first pass: build symbols, data image, and reserve code size. */
 bool pass1_run(const char *am_path, Pass1Result *out) {
+    FILE *fp;
+    char buf[4096];
+    int lineno;
+
     init_result(out);
 
-    FILE *fp = fopen(am_path, "r");
+    fp = fopen(am_path, "r");
     if (!fp) {
         errors_addf(&out->errors, 0, "cannot open %s", am_path);
         out->ok = false;
         return false;
     }
 
-    char buf[4096];
-    int lineno = 0;
+    lineno = 0;
     while (fgets(buf, sizeof buf, fp)) {
         lineno++;
         handle_line(buf, out, lineno);

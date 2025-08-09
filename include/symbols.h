@@ -1,7 +1,7 @@
 #ifndef SYMBOLS_H
 #define SYMBOLS_H
-
-#include <stdbool.h>
+#include <stdio.h>  /* for FILE */
+#include "defaults.h"
 #include "errors.h"
 
 /* Bit-flags describing the symbol. */

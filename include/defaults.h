@@ -34,6 +34,11 @@
 #define IC_START         100   /* Program code starts from address 100      */
 #define MAX_OPERANDS       2   /* ISA never has more than two operands      */
 
+/* Back-compat: some modules expect IC_INIT */
+#ifndef IC_INIT
+#define IC_INIT IC_START
+#endif
+
 /*-------------------------------------------------------------------------*/
 /*  Derived helper sizes                                                    */
 /*-------------------------------------------------------------------------*/
@@ -47,9 +52,12 @@
 #if defined(__STDC_VERSION__) && __STDC_VERSION__ >= 199901L
   #include <stdbool.h>
 #else
-  typedef int bool;
-  #define true  1
-  #define false 0
+  #ifndef __bool_true_false_are_defined
+    typedef int bool;
+    #define true  1
+    #define false 0
+    #define __bool_true_false_are_defined 1
+  #endif
 #endif
 
 /*-------------------------------------------------------------------------*/

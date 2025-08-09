@@ -1,0 +1,117 @@
+PASS 1 – negative cases summary
+===============================
+
+addressing-mode-not-allowed-for-dest/
+  Goal: dest uses an illegal addressing mode for the opcode.
+  Example:  mov r1, #5
+  Expect:   addressing mode not allowed for destination
+
+addressing-mode-not-allowed-for-source/
+  Goal: source uses an illegal addressing mode for the opcode.
+  Example:  lea #5, r1
+  Expect:   addressing mode not allowed for source
+
+comma-not-in-right-place/
+  Goal: misplaced comma in a directive/operands.
+  Example:  .data ,5    (or)  .data 1,,2
+  Expect:   invalid number in .data   (parser fails on the empty/garbage token)
+
+define-as-extern-and-inside/
+  Goal: symbol declared .extern and later defined as label/data/code.
+  Example:  .extern X   /   X: .data 1
+  Expect:   cannot define external symbol 'X' (declared extern at line 1)
+
+double-external-decleration/
+  Goal: same symbol .extern twice.
+  Example:  .extern Y   /   .extern Y
+  Expect:   cannot define external symbol 'Y' (declared extern at line 1)
+
+duplicate-extern-and-entry/
+  Goal: .entry on a symbol that is also .extern.
+  Example:  .extern EXT   /   .entry EXT
+  Expect:   symbol 'EXT' marked .entry but also declared .extern
+
+duplicate-label/
+  Goal: two definitions of the same label.
+  Example:  MAIN: mov r1, r2   /   MAIN: add r2, r3
+  Expect:   duplicate label 'MAIN' (previously defined at line 1)
+
+label-before-entry/
+  Goal: label attached to .entry line.
+  Example:  L: .entry A
+  Expect:   label before .entry is illegal
+
+label-before-extern/
+  Goal: label attached to .extern line.
+  Example:  L: .extern A
+  Expect:   label before .extern is illegal
+
+label-without-statement/
+  Goal: naked label with nothing after the colon.
+  Example:  ONLY_LABEL:
+  Expect:   label without statement
+
+missing-dest-operand/
+  Goal: two-operand instruction with nothing after the comma.
+  Example:  mov r1,
+  Expect:   missing destination operand
+
+missing-quote-in-string/
+  Goal: .string without closing quote.
+  Example:  .string "hi
+  Expect:   missing closing quote in .string
+
+missing-source-operand/
+  Goal: two-operand instruction with nothing before the comma.
+  Example:  mov , r2
+  Expect:   missing source operand
+
+no-comma/
+  Goal: missing comma between instruction operands.
+  Example:  mov r1 r2
+  Expect:   expected comma between operands
+
+no-comma-between-numbers/
+  Goal: missing comma between .data numbers.
+  Example:  .data 1 2
+  Expect:   expected comma between .data numbers
+
+non-numeric-item-in-data/
+  Goal: non-numeric token in .data list.
+  Example:  .data 5, xyz
+  Expect:   invalid number in .data
+
+too-much-operands/
+  Goal: extra operand for a 1-operand opcode.
+  Example:  not r1, r2
+  Expect:   unexpected text after instruction
+
+unexpected-text-after-string/
+  Goal: trailing garbage after a valid .string.
+  Example:  .string "hi" xyz
+  Expect:   unexpected text after .string
+
+unexpected-text-in-data/
+  Goal: trailing garbage after a valid .data list.
+  Example:  .data 1, 2 xyz
+  Expect:   unexpected text after .data list
+
+unknown-directive/
+  Goal: dot-directive that isn’t supported.
+  Example:  .unknown 1,2,3
+  Expect:   unknown directive
+
+unknown-mnemonic/
+  Goal: misspelled/unknown instruction.
+  Example:  muv r1, r2
+  Expect:   unknown mnemonic 'muv'
+
+unknown-mnemonic2/
+  Goal: another unknown mnemonic spelling.
+  Example:  stopp
+  Expect:   unknown mnemonic 'stopp'
+
+zero-operand-inst-with-operand/
+  Goal: zero-operand opcode given an operand.
+  Example:  rts r1
+  Expect:   unexpected text after zero-operand instruction

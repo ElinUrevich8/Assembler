@@ -1,0 +1,2 @@
+/mnt/hgfs/Assembler/tests/cases/pass1/label-before-entry/test.as:1: label before .entry is illegal
+Assembly failed for /mnt/hgfs/Assembler/tests/cases/pass1/label-before-entry/test.as

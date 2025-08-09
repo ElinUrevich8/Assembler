@@ -13,10 +13,10 @@
  *  • On any failure:  free resources and delete the temporary .am file.
  *====================================================================*/
 
+#include "assembler.h"     /* public assemble_file() prototype         */
 #include "defaults.h"      /* bool, PATH_MAX, success / failure codes  */
 #include "nameset.h"       /* generic hash-set for identifiers         */
 #include "preassembler.h"  /* stage 0                                  */
-#include "assembler.h"     /* public assemble_file() prototype         */
 #include "debug.h"
 #include "pass1.h"
 

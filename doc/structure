@@ -1,41 +1,53 @@
-#TODO - convert this to english
 assembler-project/
-├─ README.md
-├─ Makefile
-├─ include/                ← כל קובצי .h שחשובים ליותר מקובץ אחד
-│  ├─ defaults.h           ← קבועים גלובליים + fallback-bool
-│  ├─ nameset.h            ← Hash-set כללי (מחרוזות בלבד)
-│  ├─ macro.h              ← API של טבלת-המקרו (מבוסס nameset)
-│  ├─ preassembler.h       ← פונקציה ציבורית: preassemble()
-│  ├─ assembler.h          ← ממשק high-level: assemble_file()
-│  ├─ pass1.h, pass2.h     ← ממשקי המעברים (private ל־src, אך נוח כאן)
-│  ├─ codeimg.h            ← וקטור מילות קוד/נתונים + helpers
-│  ├─ symbols.h            ← טבלת סמלים (מבוסס nameset)
-│  ├─ encoding.h           ← בניית Word ראשון, Base-4, וכו
-│  ├─ errors.h             ← אגירת שגיאות והרצה בטוחה
-│  └─ output.h             ← כתיבת .ob/.ent/.ext
+├─ assembler                 ← Built binary (after linking)
+├─ Makefile                  ← Build rules (C90: -ansi -pedantic -Wall, includes)
 │
-├─ src/                    ← קוד C “אמיתי”
-│  ├─ main.c               ← parser CLI → קורא assemble_file()
-│  ├─ nameset.c            ← מימוש ה-hash-set
-│  ├─ macro.c              ← הגדרת/חיפוש מקרו
-│  ├─ preassembler.c       ← קורא .as → יוצר .am; ממלא NameSet
-│  ├─ assembler.c          ← glue: preassemble → pass1 → pass2
-│  ├─ pass1.c              ← סריקה ראשונה; בונה symbol + data image
-│  ├─ pass2.c              ← סריקה שנייה; פותר סמלים
-│  ├─ codeimg.c            ← push_word, relocate_data, …
-│  ├─ symbols.c            ← עטיפה סביב nameset לטבלת-סמלים
-│  ├─ encoding.c           ← build_first_word(), print_base4()
-│  ├─ errors.c             ← רשימת Error + pretty-print
-│  └─ output.c             ← כותב קבצי פלט אם לא היו שגיאות
+├─ include/                  ← Public headers shared across modules
+│  ├─ assembler.h            ← High-level API: assemble_file(); extern g_used_names
+│  ├─ codeimg.h              ← Code/Data image container + helpers (push/relocate)
+│  ├─ debug.h                ← Debug/logging macros
+│  ├─ defaults.h             ← Global constants, limits, fallback bool, paths
+│  ├─ encoding.h             ← Parsers: .data/.string/.mat + size estimator prototypes
+│  ├─ errors.h               ← Error list/collector API
+│  ├─ hash_core.h            ← Hash internals for NameSet
+│  ├─ identifiers.h          ← Reserved-identifier checks + name validators
+│  ├─ macro.h                ← Macro table API (used by preassembler)
+│  ├─ nameset.h              ← Generic string hash-set (identifiers namespace)
+│  ├─ output.h               ← (Planned) .ob/.ent/.ext writers
+│  ├─ pass1.h                ← Pass 1 interface (symbols, code/data images)
+│  ├─ pass2.h                ← (Planned) Pass 2 interface
+│  ├─ preassembler.h         ← Stage-0 API: preassemble()
+│  └─ symbols.h              ← Symbol table types/API (CODE/DATA/EXTERN/ENTRY)
 │
-├─ tests/                  ← קבצי .as לדוגמה + expected.ob/.ext/.ent
-│  ├─ legal1.as
-│  ├─ legal2.as
-│  ├─ error_duplicate_label.as
-│  └─ run_tests.sh         ← מריץ make && diff מול result-expected
+├─ src/                      ← Actual C implementation
+│  ├─ assembler.c            ← Orchestrates: preassemble → pass1 (global NameSet)
+│  ├─ codeimg.c              ← Image storage, push_word, relocate data after code
+│  ├─ debug.c                ← Debug helpers
+│  ├─ encoding.c             ← .data/.string/.mat parsing; unified errors; size estimate
+│  ├─ errors.c               ← Error aggregation + printing
+│  ├─ hash_core.c            ← Hash utilities for NameSet
+│  ├─ identifiers.c          ← Reserved words list + valid name checks
+│  ├─ macro.c                ← Macro define/lookup storage
+│  ├─ main.c                 ← CLI driver; iterates .as files; calls assemble_file()
+│  ├─ nameset.c              ← String hash-set implementation
+│  ├─ pass1.c                ← First pass: labels+externs, code/data placeholders, relocation
+│  ├─ preassembler.c         ← Expands macros (.am), records macro names into NameSet
+│  └─ symbols.c              ← Symbol table (define/lookup/relocate/entry/external)
 │
-├─ build/                  ← קבצי .o ובינרי סופי “assembler”
-│  (נוצר אוטומטית על ידי ה-Makefile; אפשר לעשות `make clean`)
+├─ build/                    ← Object files + intermediate artefacts (auto-created)
+│  ├─ assembler.o
+│  ├─ codeimg.o
+│  ├─ debug.o
+│  ├─ encoding.o
+│  ├─ errors.o
+│  ├─ hash_core.o
+│  ├─ identifiers.o
+│  ├─ macro.o
+│  ├─ main.o
+│  ├─ nameset.o
+│  ├─ pass1.o
+│  ├─ preassembler.o
+│  └─ symbols.o
 │
-└─ docs/ (אופציונלי)      ← מסמכי עיצוב PDF או Markdown
+└─ doc/
+   └─ structure              ← (Your docs live here; expand as needed later)

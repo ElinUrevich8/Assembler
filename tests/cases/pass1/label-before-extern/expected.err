@@ -1,2 +1,0 @@
- /mnt/hgfs/Assembler/tests/cases/pass1/label-before-extern/test.as:1: label before .extern is illegal
-Assembly failed for /mnt/hgfs/Assembler/tests/cases/pass1/label-before-extern/test.as

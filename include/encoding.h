@@ -25,6 +25,8 @@ int  parse_and_push_data_operands(const char *s, CodeImg *data,
 
 int  parse_and_push_string(const char *s, CodeImg *data,
                            Errors *errs, int lineno);
+                           
+int parse_and_push_mat(const char *s, CodeImg *data, Errors *errs, int lineno);                           
 
 bool encoding_estimate_size(const char *instr, EncodedInstrSize *sz,
                             Errors *errs, int lineno);

@@ -1,6 +1,9 @@
 PASS 1 – negative cases summary
 ===============================
 
+Should produce an error (fail in Pass 1)
+-------------------------------------------
+
 addressing-mode-not-allowed-for-dest/
   Goal: dest uses an illegal addressing mode for the opcode.
   Example:  mov r1, #5
@@ -14,7 +17,7 @@ addressing-mode-not-allowed-for-source/
 comma-not-in-right-place/
   Goal: misplaced comma in a directive/operands.
   Example:  .data ,5    (or)  .data 1,,2
-  Expect:   invalid number in .data   (parser fails on the empty/garbage token)
+  Expect:   malformed .data list
 
 define-as-extern-and-inside/
   Goal: symbol declared .extern and later defined as label/data/code.
@@ -36,20 +39,31 @@ duplicate-label/
   Example:  MAIN: mov r1, r2   /   MAIN: add r2, r3
   Expect:   duplicate label 'MAIN' (previously defined at line 1)
 
-label-before-entry/
-  Goal: label attached to .entry line.
-  Example:  L: .entry A
-  Expect:   label before .entry is illegal
+define-label-as-instruction/
+  Goal: label name equals an instruction/directive (reserved).
+  Example:  add: .data 1,3
+  Expect:   illegal label name 'add' (reserved)
 
-label-before-extern/
-  Goal: label attached to .extern line.
-  Example:  L: .extern A
-  Expect:   label before .extern is illegal
+deplicate-macro-and-label/
+  Goal: label name duplicates an existing macro name.
+  Example:  mcro HELLO … mcroend / HELLO: mov r1, r2
+  Expect:   label 'HELLO' conflicts with macro name
+
+illegal-label2/
+  Goal: illegal label syntax (e.g., space before colon).
+  Example:  LBL : mov r1, r2
+  Expect:   illegal label name 'LBL '
+
+illegal-label3/
+  Goal: illegal label syntax (starts with a digit).
+  Example:  1LB: mov r1, r2
+  Expect:   illegal label name '1LB'
 
 label-without-statement/
   Goal: naked label with nothing after the colon.
   Example:  ONLY_LABEL:
-  Expect:   label without statement
+  Expect:   illegal label name 'ONLY_LABEL'   (strict spec: '_' not allowed)
+            # If testing a valid name like ONLYLABEL:, expect: label without statement
 
 missing-dest-operand/
   Goal: two-operand instruction with nothing after the comma.
@@ -74,12 +88,17 @@ no-comma/
 no-comma-between-numbers/
   Goal: missing comma between .data numbers.
   Example:  .data 1 2
-  Expect:   expected comma between .data numbers
+  Expect:   malformed .data list
 
 non-numeric-item-in-data/
   Goal: non-numeric token in .data list.
   Example:  .data 5, xyz
-  Expect:   invalid number in .data
+  Expect:   malformed .data list
+
+too-much-comma/
+  Goal: double/trailing comma in .data.
+  Example:  .data 7,, -57
+  Expect:   malformed .data list
 
 too-much-operands/
   Goal: extra operand for a 1-operand opcode.
@@ -94,7 +113,7 @@ unexpected-text-after-string/
 unexpected-text-in-data/
   Goal: trailing garbage after a valid .data list.
   Example:  .data 1, 2 xyz
-  Expect:   unexpected text after .data list
+  Expect:   malformed .data list
 
 unknown-directive/
   Goal: dot-directive that isn’t supported.
@@ -115,3 +134,17 @@ zero-operand-inst-with-operand/
   Goal: zero-operand opcode given an operand.
   Example:  rts r1
   Expect:   unexpected text after zero-operand instruction
+
+
+ No-error cases (allowed by spec; should pass in Pass 1)
+---------------------------------------------------------
+
+label-before-entry/
+  Goal: label attached to .entry line is meaningless.
+  Example:  L: .entry A
+  Expect:   label is ignored (no error)
+
+label-before-extern/
+  Goal: label attached to .extern line is meaningless.
+  Example:  L: .extern A
+  Expect:   label is ignored (no error)

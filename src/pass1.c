@@ -2,12 +2,14 @@
 #include <string.h>
 #include <ctype.h>
 #include "pass1.h"
-#include "encoding.h"   /* .data/.string parsers + size estimator */
+#include "encoding.h"   /* .data/.string/.mat parsers + size estimator */
+#include "assembler.h"  /* for g_used_names */
+#include "nameset.h"
+#include "identifiers.h"
 
+/* --- small local helpers -------------------------------- */
 
-/* --- small local helpers (C90-friendly) -------------------------------- */
-
-/* Use a different name to avoid clashing with any starts_with in headers. */
+/* Returns non-zero if s starts with prefix (C90-friendly). */
 static int has_prefix(const char *s, const char *prefix) {
     while (*prefix) {
         if (*s++ != *prefix++) return 0;
@@ -28,31 +30,55 @@ static bool empty_or_comment(const char *p) {
 }
 
 /* Read optional "LABEL:" at start of line into out (if present).
+   Rules (spec):
+   - First char must be a letter [A-Za-z]
+   - Following chars: letters or digits only
+   - No underscores are allowed
    Returns pointer after the label and colon, or original p if none.
    On invalid label syntax, writes error and returns NULL. */
 static const char* read_optional_label(const char *p, char *out, size_t cap,
                                        Errors *errs, int lineno) {
-    const char *s;
-    const char *colon;
-    const char *after_id;
+    const char *s = ltrim(p);
+    const char *colon = strchr(s, ':');
+    const char *q;
     size_t n;
 
-    s = ltrim(p);
-    colon = strchr(s, ':');
-    if (!colon) return p; /* no label */
+    if (!colon) return p; /* no label candidate */
 
-    /* Make sure chars before ':' form a valid symbol. */
-    if (!isalpha((unsigned char)*s) && *s != '_') return p; /* not a label */
-    after_id = s + 1;
-    while (isalnum((unsigned char)*after_id) || *after_id == '_') after_id++;
+    /* First char must be a letter */
+    if (!isalpha((unsigned char)*s)) {
+        errors_addf(errs, lineno, "illegal label name '%.*s'", (int)(colon - s), s);
+        return NULL;
+    }
 
-    /* If the ':' we saw isn’t right after the identifier, then it’s not a label. */
-    if (after_id != colon) return p;
+    /* Allow [A-Za-z][A-Za-z0-9]* only (no underscore) */
+    q = s + 1;
+    while (q < colon) {
+        if (!isalnum((unsigned char)*q)) {
+            errors_addf(errs, lineno, "illegal label name '%.*s'", (int)(colon - s), s);
+            return NULL;
+        }
+        ++q;
+    }
 
+    /* Length limit */
     n = (size_t)(colon - s);
-    if (n >= cap) n = cap - 1;
+    if (n > MAX_LABEL_LEN) {
+        errors_addf(errs, lineno, "illegal label name '%.*s' (too long)", (int)(colon - s), s);
+        return NULL;
+    }
+
+    /* Copy to out now that we know it's syntactically fine */
+    if (n >= cap) n = cap - 1; /* safety against tiny buffers */
     memcpy(out, s, n);
     out[n] = '\0';
+
+    /* Reserved words not allowed */
+    if (is_reserved_identifier(out)) {
+        errors_addf(errs, lineno, "illegal label name '%s' (reserved)", out);
+        return NULL;
+    }
+
     return colon + 1;
 }
 
@@ -84,6 +110,14 @@ static void handle_directive(const char *p, const char *label,
     if (has_prefix(p, ".data")) {
         int pushed;
         if (label && *label) {
+            /* enforce single namespace with macros */
+            if (g_used_names && ns_contains(g_used_names, label)) {
+                errors_addf(&r->errors, lineno,
+                            "label '%s' conflicts with macro name", label);
+                r->ok = false;
+                return;
+            }
+
             if (!symbols_define(r->symbols, label, r->dc, SYM_DATA, lineno, &r->errors))
                 r->ok = false;
         }
@@ -97,6 +131,13 @@ static void handle_directive(const char *p, const char *label,
     if (has_prefix(p, ".string")) {
         int pushed;
         if (label && *label) {
+            if (g_used_names && ns_contains(g_used_names, label)) {
+                errors_addf(&r->errors, lineno,
+                            "label '%s' conflicts with macro name", label);
+                r->ok = false;
+                return;
+            }
+
             if (!symbols_define(r->symbols, label, r->dc, SYM_DATA, lineno, &r->errors))
                 r->ok = false;
         }
@@ -106,13 +147,34 @@ static void handle_directive(const char *p, const char *label,
         return;
     }
 
+    /* .mat */
+    if (has_prefix(p, ".mat")) {
+        int pushed;
+        if (label && *label) {
+            if (g_used_names && ns_contains(g_used_names, label)) {
+                errors_addf(&r->errors, lineno,
+                            "label '%s' conflicts with macro name", label);
+                r->ok = false;
+                return;
+            }
+
+            if (!symbols_define(r->symbols, label, r->dc, SYM_DATA, lineno, &r->errors))
+                r->ok = false;
+        }
+        /* Expected: .mat [rows][cols] <optional comma-separated initializers> */
+        pushed = parse_and_push_mat(p + 4, &r->data, &r->errors, lineno);
+        if (pushed < 0) { r->ok = false; return; }
+        r->dc += pushed; /* rows*cols returned by parser */
+        return;
+    }
+
     /* .extern */
     if (has_prefix(p, ".extern")) {
         char name[128];
-        if (label && *label) {
-            errors_addf(&r->errors, lineno, "label before .extern is illegal");
-            r->ok = false;
-        }
+
+        /* Spec: a label before .extern is meaningless → ignore (no error) */
+        (void)label;
+
         if (!parse_symbol_name(p + 7, name, sizeof name)) {
             errors_addf(&r->errors, lineno, "expected symbol after .extern");
             r->ok = false;
@@ -126,10 +188,10 @@ static void handle_directive(const char *p, const char *label,
     /* .entry */
     if (has_prefix(p, ".entry")) {
         char name[128];
-        if (label && *label) {
-            errors_addf(&r->errors, lineno, "label before .entry is illegal");
-            r->ok = false;
-        }
+
+        /* Spec: a label before .entry is meaningless → ignore (no error) */
+        (void)label;
+
         if (!parse_symbol_name(p + 6, name, sizeof name)) {
             errors_addf(&r->errors, lineno, "expected symbol after .entry");
             r->ok = false;
@@ -150,6 +212,13 @@ static void handle_instruction(const char *p, const char *label,
     EncodedInstrSize sz;
 
     if (label && *label) {
+        /* enforce single namespace with macros */
+        if (g_used_names && ns_contains(g_used_names, label)) {
+            errors_addf(&r->errors, lineno,
+                        "label '%s' conflicts with macro name", label);
+            r->ok = false;
+            return;
+        }
         if (!symbols_define(r->symbols, label, r->ic, SYM_CODE, lineno, &r->errors)) {
             r->ok = false;
             return;

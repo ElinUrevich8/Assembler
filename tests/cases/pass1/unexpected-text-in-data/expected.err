@@ -1,2 +1,2 @@
- /mnt/hgfs/Assembler/tests/cases/pass1/unexpected-text-in-data/test.as:1: unexpected text after .data list
+/mnt/hgfs/Assembler/tests/cases/pass1/unexpected-text-in-data/test.as:1: malformed .data list
 Assembly failed for /mnt/hgfs/Assembler/tests/cases/pass1/unexpected-text-in-data/test.as

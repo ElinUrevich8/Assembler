@@ -22,11 +22,6 @@ static const char* skip_ws(const char *p) {
     return p;
 }
 
-/* Token separator? end/comma/space/comment */
-static int is_sep(int ch) {
-    return ch == 0 || ch == ',' || isspace(ch) || ch == ';';
-}
-
 /* Read identifier [A-Za-z_][A-Za-z0-9_]*; returns start, sets *out_end. */
 static const char* read_word(const char *p, const char **out_end) {
     const char *s = p;
@@ -193,59 +188,66 @@ bool parse_symbol_name(const char *s, char *out, size_t outsz) {
    Returns number of words pushed, or -1 on error. */
 int parse_and_push_data_operands(const char *s, CodeImg *data,
                                  Errors *errs, int lineno) {
-    int count = 0;
+   int count = 0;
     const char *p = s;
-    int need_number = 1;
+    int expect_number = 1; /* true: expecting a number; false: expecting comma or end */
 
     p = skip_ws(p);
+    if (*p == ';' || *p == '\0') {
+        errors_addf(errs, lineno, "malformed .data list");
+        return -1;
+    }
 
-    while (*p) {
+    for (;;) {
         const char *e;
         long v;
 
         p = skip_ws(p);
-        if (*p == ';' || *p == '\0') break;
 
-        if (!need_number) {
-            errors_addf(errs, lineno, "expected comma between .data numbers");
-            return -1;
-        }
-
-        if (!parse_int10(p, &e, &v)) {
-            errors_addf(errs, lineno, "invalid number in .data");
-            return -1;
-        }
-        codeimg_push_word(data, (int)v, lineno);
-        count++;
-
-        p = skip_ws(e);
-        if (*p == ',') {
-            p++;
-            need_number = 1;
+        if (expect_number) {
+            /* Leading comma, double comma, or invalid token where a number is expected */
+            if (*p == ',' || *p == ';' || *p == '\0') {
+                errors_addf(errs, lineno, "malformed .data list");
+                return -1;
+            }
+            if (!parse_int10(p, &e, &v)) {
+                errors_addf(errs, lineno, "malformed .data list");
+                return -1;
+            }
+            codeimg_push_word(data, (int)v, lineno);
+            count++;
+            p = skip_ws(e);
+            expect_number = 0;
             continue;
         }
-        
 
-        if (*p == '+' || *p == '-' || isdigit((unsigned char)*p)) {
-        errors_addf(errs, lineno, "expected comma between .data numbers");
+        /* Expecting comma (another item) or end of list */
+        if (*p == ',') {
+            p++;
+            p = skip_ws(p);
+            /* Trailing comma without a following number */
+            if (*p == ';' || *p == '\0') {
+                errors_addf(errs, lineno, "malformed .data list");
+                return -1;
+            }
+            expect_number = 1;
+            continue;
+        }
+        if (*p == ';' || *p == '\0') {
+            /* Valid end of list */
+            break;
+        }
+        /* Any other unexpected character after list */
+        errors_addf(errs, lineno, "malformed .data list");
         return -1;
-        }
-            
-        need_number = 0;
-        p = skip_ws(p);
-        if (*p == ';' || *p == '\0') break;
-        if (!is_sep((unsigned char)*p)) {
-            errors_addf(errs, lineno, "unexpected text after .data list");
-            return -1;
-        }
-        break;
     }
 
-    if (count == 0) {
-        errors_addf(errs, lineno, ".data requires at least one number");
+    if (count <= 0) {
+        errors_addf(errs, lineno, "malformed .data list");
         return -1;
     }
     return count;
+
 }
 
 /* Parse `.string "..."`, push chars as words + terminating 0.
@@ -289,6 +291,115 @@ int parse_and_push_string(const char *s, CodeImg *data,
     }
     return pushed;
 }
+
+int parse_and_push_mat(const char *s, CodeImg *data, Errors *errs, int lineno)
+{
+    const char *p = s;
+    long rows = 0, cols = 0;
+    const char *e;
+    int total, filled, expect_number;
+
+    /* parse leading whitespace and the two bracketed dimensions: [rows][cols] */
+    p = skip_ws(p);
+    if (*p != '[') { errors_addf(errs, lineno, "malformed .mat definition"); return -1; }
+    p++;
+    if (!parse_int10(p, &e, &rows)) { errors_addf(errs, lineno, "malformed .mat definition"); return -1; }
+    p = skip_ws(e);
+    if (*p != ']') { errors_addf(errs, lineno, "malformed .mat definition"); return -1; }
+    p++;
+
+    p = skip_ws(p);
+    if (*p != '[') { errors_addf(errs, lineno, "malformed .mat definition"); return -1; }
+    p++;
+    if (!parse_int10(p, &e, &cols)) { errors_addf(errs, lineno, "malformed .mat definition"); return -1; }
+    p = skip_ws(e);
+    if (*p != ']') { errors_addf(errs, lineno, "malformed .mat definition"); return -1; }
+    p++;
+
+    /* basic sanity (non-positive sizes are invalid) */
+    if (rows <= 0 || cols <= 0) {
+        errors_addf(errs, lineno, "malformed .mat definition");
+        return -1;
+    }
+
+    /* number of cells to allocate */
+    total = (int)(rows * cols);
+    if (total <= 0) { /* overflow or zero after cast */
+        errors_addf(errs, lineno, "malformed .mat definition");
+        return -1;
+    }
+
+    /* optional initializer list: comma-separated integers */
+    p = skip_ws(p);
+    filled = 0;
+
+    /* No initializers → pad with zeros */
+    if (*p == '\0' || *p == ';') {
+        while (filled < total) {
+            codeimg_push_word(data, 0, lineno);
+            filled++;
+        }
+        return total;
+    }
+
+    /* parse comma-separated list, similar to .data */
+    expect_number = 1;
+    for (;;) {
+        long v;
+
+        p = skip_ws(p);
+
+        if (expect_number) {
+            /* leading comma / end-of-line where a number is expected */
+            if (*p == ',' || *p == '\0' || *p == ';') {
+                errors_addf(errs, lineno, "malformed .mat definition");
+                return -1;
+            }
+            if (!parse_int10(p, &e, &v)) {
+                errors_addf(errs, lineno, "malformed .mat definition");
+                return -1;
+            }
+            if (filled >= total) {
+                errors_addf(errs, lineno, "malformed .mat definition");
+                return -1;
+            }
+            codeimg_push_word(data, (int)v, lineno);
+            filled++;
+            p = skip_ws(e);
+            expect_number = 0;
+            continue;
+        }
+
+        /* here we expect either a comma (more items) or end of list */
+        if (*p == ',') {
+            p++;
+            p = skip_ws(p);
+            /* trailing comma without number */
+            if (*p == '\0' || *p == ';') {
+                errors_addf(errs, lineno, "malformed .mat definition");
+                return -1;
+            }
+            expect_number = 1;
+            continue;
+        }
+
+        /* end of list */
+        if (*p == '\0' || *p == ';') break;
+
+        /* any other junk after the list */
+        errors_addf(errs, lineno, "malformed .mat definition");
+        return -1;
+    }
+
+    /* pad remaining cells with zeros if needed */
+    while (filled < total) {
+        codeimg_push_word(data, 0, lineno);
+        filled++;
+    }
+
+    return total;
+}
+
 
 /* Estimate the number of words an instruction will occupy (pass 1). */
 bool encoding_estimate_size(const char *instr, EncodedInstrSize *sz,

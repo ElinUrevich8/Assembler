@@ -1,0 +1,1 @@
+LBL:    .extern FOO

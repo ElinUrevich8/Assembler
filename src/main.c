@@ -1,9 +1,8 @@
 /*====================================================================
  *  main.c  –  command-line driver for the two-pass assembler
  *====================================================================*/
-
-#include "defaults.h"     /* brings boolean type, PATH_MAX, etc. */
 #include "assembler.h"    /* high-level assemble_file() */
+#include "defaults.h"     /* brings boolean type, PATH_MAX, etc. */
 
 #include <stdio.h>
 #include <string.h>

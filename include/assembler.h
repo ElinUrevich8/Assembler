@@ -10,12 +10,15 @@
 #define ASSEMBLER_H
 
 #include "defaults.h"
+#include "nameset.h"   /* for NameSet */
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
 bool assemble_file(const char *base_path);
+/* shared global: macro/label single-namespace set */
+extern NameSet *g_used_names;
 
 #ifdef __cplusplus
 }

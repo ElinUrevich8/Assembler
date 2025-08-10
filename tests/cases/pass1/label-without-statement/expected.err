@@ -1,0 +1,2 @@
+/mnt/hgfs/Assembler/tests/cases/pass1/label-without-statement/test.as:1: illegal label name 'ONLY_LABEL'
+Assembly failed for /mnt/hgfs/Assembler/tests/cases/pass1/label-without-statement/test.as

@@ -1,0 +1,2 @@
+.extern Y
+.extern Y

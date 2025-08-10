@@ -1,0 +1,2 @@
+/mnt/hgfs/Assembler/tests/cases/pass1/missing-quote-in-string/test.as:1: missing closing quote in .string
+Assembly failed for /mnt/hgfs/Assembler/tests/cases/pass1/missing-quote-in-string/test.as

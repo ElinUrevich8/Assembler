@@ -15,50 +15,10 @@
 #include "macro.h"        /* MacroTable API                        */
 #include "preassembler.h" /* prototype                             */
 #include "debug.h"
-extern NameSet g_used_names;          /* defined in assembler.c */
+#include "assembler.h"    /* brings: extern NameSet *g_used_names */
+#include "identifiers.h"  /* is_valid_macro_name / is_reserved_identifier */
 
-/*------------------------------------------------------------*/
-/*  Reserved words (cannot be macro names)                    */
-/*------------------------------------------------------------*/
-static const char *reserved_words[] = {
-    "mov","cmp","add","sub","not","clr","lea","inc","dec",
-    "jmp","bne","red","prn","jsr","rts","stop",
-    ".data",".string",".entry",".extern", NULL
-};
 
-static bool is_reserved_word(const char *s)
-{
-    int i;
-    for (i = 0; reserved_words[i]; ++i) {
-        if (strcmp(s, reserved_words[i]) == 0) {
-            DEBUG("Macro name '%s' is a reserved word\n", s);
-            return true;
-        }
-    }
-
-    return false;
-}
-
-static bool is_valid_macro_name(const char *s)
-{
-    const char *p;
-    if (!isalpha((unsigned char)s[0])) {
-        DEBUG("Macro name '%s' does not start with a letter\n", s);
-        return false;
-    }
-    if (strlen(s) > MAX_LABEL_LEN) {
-        DEBUG("Macro name '%s' exceeds maximum length of %d\n", s, MAX_LABEL_LEN);
-        return false;
-    }
-    for (p = s; *p; ++p)
-        if (!isalnum((unsigned char)*p) && *p != '_') {
-            DEBUG("Macro name '%s' contains invalid character '%c' at position %ld\n", s, *p, p - s);
-            return false;
-        }
-    return true;
-}
-
-/*----------------------------------------------------------------------------*/
 bool preassemble(const char *in_path, const char *out_path)
 /*----------------------------------------------------------------------------*/
 {
@@ -150,12 +110,10 @@ bool preassemble(const char *in_path, const char *out_path)
 
                 if (error) break;
 
-                if (is_reserved_word(macro_name) ||
-                    !is_valid_macro_name(macro_name)) {
-                    fprintf(stderr,
-                            "Error(line %d): illegal macro name '%s'\n",
-                            line_no, macro_name);
-                    error = true; break;
+                if (!is_valid_macro_name(macro_name)) {
+                    fprintf(stderr, "Error(line %d): illegal macro name '%s'\n", line_no, macro_name);
+                    error = true; 
+                    break;
                 }
 
                 /* prepare buffer for body */
@@ -180,6 +138,12 @@ bool preassemble(const char *in_path, const char *out_path)
                 if (!macro_define(&macros, macro_name, macro_buf, line_no)) {
                     error = true; break;   /* duplicate / OOM handled inside */
                 }
+
+                /* Share macro name with later passes to enforce single namespace */
+                if (g_used_names) {
+                    (void)ns_add(g_used_names, macro_name); /* ignore dup result; macro_define already checked */
+                }
+
                 free(macro_buf); macro_buf = NULL;
                 in_macro = false;
                 continue;

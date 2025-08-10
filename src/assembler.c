@@ -13,11 +13,13 @@
  *  • On any failure:  free resources and delete the temporary .am file.
  *====================================================================*/
 
+#include "assembler.h"     /* public assemble_file() prototype         */
 #include "defaults.h"      /* bool, PATH_MAX, success / failure codes  */
 #include "nameset.h"       /* generic hash-set for identifiers         */
 #include "preassembler.h"  /* stage 0                                  */
-#include "assembler.h"     /* public assemble_file() prototype         */
 #include "debug.h"
+#include "pass1.h"
+
 
 #include <stdio.h>
 #include <string.h>        /* snprintf                                 */
@@ -60,6 +62,19 @@ bool assemble_file(const char *base_path)
     /*----------  Stage 0 : Pre-assembler  ----------*/
     if (!preassemble(as_path, am_path)) {
         goto error;
+    }
+
+     /*----------  Stage 1 : Pass-1  ----------*/
+    {
+        Pass1Result p1 = {0};
+        if (!pass1_run(am_path, &p1) || !p1.ok) {
+            DEBUG("Pass-1 failed for %s", as_path);
+            errors_print(&p1.errors, as_path);   /* show collected errors */
+            pass1_free(&p1);
+            goto error;
+        }
+        DEBUG("Pass-1 OK: IC=%d, DC=%d", p1.ic, p1.dc);
+        pass1_free(&p1);
     }
     
     goto success;

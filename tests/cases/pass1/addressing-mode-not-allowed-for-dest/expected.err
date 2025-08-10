@@ -1,0 +1,2 @@
+/mnt/hgfs/Assembler/tests/cases/pass1/addressing-mode-not-allowed-for-dest/test.as:1: addressing mode not allowed for destination
+Assembly failed for /mnt/hgfs/Assembler/tests/cases/pass1/addressing-mode-not-allowed-for-dest/test.as

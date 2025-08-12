@@ -76,7 +76,36 @@ bool assemble_file(const char *base_path)
         DEBUG("Pass-1 OK: IC=%d, DC=%d", p1.ic, p1.dc);
         pass1_free(&p1);
     }
-    
+
+    /* ----------  Stage 2 : Pass-2  ---------- */
+    Pass2Result p2;
+    char path_ob[PATH_MAX], path_ent[PATH_MAX], path_ext[PATH_MAX];
+    /* build <base>.ob/.ent/.ext into the buffers ... */
+
+    if (!pass2_run(am_path, &p1, &p2) || !p2.ok || errors_count(p2.errors) > 0) {
+        errors_print(p2.errors, source_name);  
+        pass2_free(&p2);
+        /* on failure, DO NOT emit any files */
+        /* ... clean and return ... */
+    }
+
+    /* .ob is always written on success */
+    if ((fp = fopen(path_ob, "w")) != NULL) {
+        output_write_ob(fp, &p1, &p2);
+        fclose(fp);
+    }
+
+    /* Only create .ext/.ent if there is content */
+    if (p2.ext_len > 0 && (fp = fopen(path_ext, "w")) != NULL) {
+        output_write_ext(fp, &p2);
+        fclose(fp);
+    }
+    if (p2.ent_len > 0 && (fp = fopen(path_ent, "w")) != NULL) {
+        output_write_ent(fp, &p2);
+        fclose(fp);
+    }
+
+    pass2_free(&p2);
     goto success;
 
 error:

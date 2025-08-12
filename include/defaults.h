@@ -21,7 +21,7 @@
 /*  Source-file syntax limits (per spec)                                    */
 /*-------------------------------------------------------------------------*/
 /* Maximum characters in a single source line, including the final '\n'   */
-#define MAX_LINE_LEN      80
+#define MAX_LINE_LEN      81
 /* Maximum characters in a label or macro name ,including terminating NUL  */
 #define MAX_LABEL_LEN     31  
 
@@ -43,8 +43,8 @@
 /*  Derived helper sizes                                                    */
 /*-------------------------------------------------------------------------*/
 #define MAX_SRC_PATH  (PATH_MAX)               /* Buffer for input file path */
-#define MAX_AM_PATH   (PATH_MAX + 3)           /* room for ".am" + NUL       */
-#define MAX_O_PATH    (PATH_MAX + 2)           /* room for ".o" + NUL       */
+#define MAX_AM_PATH  (PATH_MAX + 4)  /* room for ".am" + NUL */
+#define MAX_OB_PATH  (PATH_MAX + 4)  /* room for ".ob" + NUL */
 
 /*-------------------------------------------------------------------------*/
 /*  Boolean type fallback for strict C90                                    */
@@ -60,21 +60,13 @@
   #endif
 #endif
 
-/*-------------------------------------------------------------------------*/
-/*  Unique base-4 printing helpers                                          */
-/*-------------------------------------------------------------------------*/
-#define BASE4_CHAR_0  'a'
-#define BASE4_CHAR_1  'b'
-#define BASE4_CHAR_2  'c'
-#define BASE4_CHAR_3  'd'
-#define BASE4_WORD_STRLEN 5     /* Each 10-bit word prints as 5 characters  */
 
 /*--------------------------------------------------*/
 /*  File-extension constants                        */
 /*--------------------------------------------------*/
 #define EXT_AS   ".as"
 #define EXT_AM   ".am"
-#define EXT_O    ".o"
+#define EXT_OB   ".ob"
 #define EXT_ENT  ".ent"
 #define EXT_EXT  ".ext"
 

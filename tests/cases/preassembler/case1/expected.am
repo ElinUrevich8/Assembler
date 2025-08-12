@@ -1,5 +1,0 @@
-
-MAIN:   mov r3, r1
-prn r1
-prn r2
-        stop

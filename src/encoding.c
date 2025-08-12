@@ -170,16 +170,16 @@ static const OpSpec OPS[] = {
     {"cmp",   1, 2, AM_ALL,     AM_ALL},
     {"add",   2, 2, AM_ALL,     AM_NOIMM},
     {"sub",   3, 2, AM_ALL,     AM_NOIMM},
-    {"not",   4, 1, 0,          AM_NOIMM},
+    {"lea",   4, 2, AM_ONLYDIR, AM_NOIMM}, /* src: 1,2 ; dst: 1,2,3 */
     {"clr",   5, 1, 0,          AM_NOIMM},
-    {"lea",   6, 2, AM_ONLYDIR, AM_NOIMM}, /* source must be "direct-like" */
+    {"not",   6, 1, 0,          AM_NOIMM},
     {"inc",   7, 1, 0,          AM_NOIMM},
     {"dec",   8, 1, 0,          AM_NOIMM},
-    {"jmp",   9, 1, 0,          AM_ONLYDIR},
+    {"jmp",   9, 1, 0,          AM_ONLYDIR}, /* dst: 1,2 */
     {"bne",  10, 1, 0,          AM_ONLYDIR},
-    {"red",  11, 1, 0,          AM_NOIMM},
-    {"prn",  12, 1, 0,          AM_ALL},   /* prn allows immediate */
-    {"jsr",  13, 1, 0,          AM_ONLYDIR},
+    {"jsr",  11, 1, 0,          AM_ONLYDIR},
+    {"red",  12, 1, 0,          AM_NOIMM},
+    {"prn",  13, 1, 0,          AM_ALL},     /* allows #imm */
     {"rts",  14, 0, 0,          0},
     {"stop", 15, 0, 0,          0}
 };

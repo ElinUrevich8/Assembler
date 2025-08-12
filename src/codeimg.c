@@ -47,3 +47,12 @@ void codeimg_relocate_data_after_code(CodeImg *code, CodeImg *data) {
 size_t codeimg_size_words(const CodeImg *img) {
     return img->len;
 }
+
+size_t codeimg_size(const CodeImg *img) {
+    return codeimg_size_words(img);
+}
+
+int codeimg_at(const CodeImg *img, size_t index) {
+    /* No bounds check for speed; callers are trusted in this project */
+    return img->words[index].value;
+}

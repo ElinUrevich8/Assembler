@@ -60,12 +60,15 @@ def execute_assembler(input_file, allow_failure=False):
 
 def cleanup_test():
     # iterate recursively on TESTS directory and delete any test.am file
-    for file in TESTS.rglob("test.am"):
-        try:
-            file.unlink()
-        except Exception as e:
-            print("Failed to delete {}: {}".format(file, e))
-            raise e
+    for file in TESTS.rglob("test*"):
+        if file.is_file():
+            ext = file.suffix.lower()
+            if ext in {".am", ".ob", ".ent", ".ext"}:
+                try:
+                    file.unlink()
+                except Exception as e:
+                    print("Failed to delete {}: {}".format(file, e))
+                    raise e
 
 
 

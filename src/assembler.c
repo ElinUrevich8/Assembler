@@ -1,122 +1,116 @@
 /*====================================================================
- *  assembler.c  –  facade layer: pre-assembler → Pass-1 → Pass-2
- *
- *  Responsibilities
- *  ------------------------------------------------------------------
- *  • Build full file names  <base>.as  <base>.am
- *  • Run the three stages in order:
- *        0) preassemble()   – macro expansion
- *        1) pass1_run()     – symbol table + partial code
- *        2) pass2_run()     – resolve symbols, write outputs
- *  • Maintain one global NameSet (g_used_names) so that macro names
- *    and label names share a single namespace.
- *  • On any failure:  free resources and delete the temporary .am file.
+ *  assembler.c  –  facade layer: pre-assembler -> Pass-1 -> Pass-2
  *====================================================================*/
-
-#include "assembler.h"     /* public assemble_file() prototype         */
-#include "defaults.h"      /* bool, PATH_MAX, success / failure codes  */
-#include "nameset.h"       /* generic hash-set for identifiers         */
-#include "preassembler.h"  /* stage 0                                  */
-#include "debug.h"
+#include "assembler.h"
+#include "defaults.h"
+#include "nameset.h"
+#include "preassembler.h"
 #include "pass1.h"
-
+#include "pass2.h"       /* Pass-2 types + API */
+#include "output.h"      /* .ob/.ent/.ext writers */
+#include "errors.h"      /* errors_count / errors_print */
+#include "debug.h"
 
 #include <stdio.h>
-#include <string.h>        /* snprintf                                 */
-#include <stdlib.h>        /* malloc/free                             */
+#include <stdlib.h>
+#include <string.h>
 
-/*--------------------------------------------------------------------
- *  Global identifier set – shared by all stages to enforce
- *  “macro names must not clash with label names”.
- *--------------------------------------------------------------------*/
+/* Global identifier set: enforces "macro names must not clash with label names". */
 NameSet *g_used_names = NULL;
 
-/*--------------------------------------------------------------------
- *  assemble_file
- *--------------------------------------------------------------------
- *  base_path – file path without extension (e.g. “src/foo”)
- *  Returns    true  on full success, false on any error.
- *--------------------------------------------------------------------*/
+/* Build “<base><ext>” safely into 'out'. */
+static void make_path(char *out, size_t cap, const char *base, const char *ext) {
+    /* Simple, C90-safe snprintf replacement */
+    size_t bl = strlen(base), el = strlen(ext);
+    if (bl + el + 1 > cap) { /* truncate conservatively */
+        bl = (cap > el + 1) ? (cap - el - 1) : 0;
+    }
+    memcpy(out, base, bl);
+    memcpy(out + bl, ext, el + 1);
+}
+
 bool assemble_file(const char *base_path)
+/*----------------------------------------------------------------------*/
 {
-    char as_path[PATH_MAX];    /* original source:  <base>.as */
-    char am_path[PATH_MAX];    /* after macro expansion: <base>.am */
+    char as_path[PATH_MAX];           /* <base>.as */
+    char am_path[PATH_MAX];           /* <base>.am */
+    char path_ob[PATH_MAX];           /* <base>.ob */
+    char path_ent[PATH_MAX];          /* <base>.ent */
+    char path_ext[PATH_MAX];          /* <base>.ext */
+    FILE *fp;
+
+    /* Some trees define EXT_O by mistake; fall back to .ob if EXT_OB is missing */
+#ifndef EXT_OB
+#define EXT_OB ".ob"
+#endif
 
     DEBUG("Assembling file: %s", base_path);
 
-    /* Build full file names */
-    sprintf(as_path, "%s.as", base_path);
-    sprintf(am_path, "%s.am", base_path);
-    DEBUG("Source file: %s", as_path);
-    DEBUG("Temporary file: %s", am_path);
+    make_path(as_path, sizeof as_path, base_path, EXT_AS);
+    make_path(am_path, sizeof am_path, base_path, EXT_AM);
+    make_path(path_ob, sizeof path_ob, base_path, EXT_OB);
+    make_path(path_ent, sizeof path_ent, base_path, EXT_ENT);
+    make_path(path_ext, sizeof path_ext, base_path, EXT_EXT);
 
-    /* Initialise the shared identifier set */
-    g_used_names = malloc(sizeof *g_used_names);
-    if (!g_used_names) {
-        fprintf(stderr, "Error: Out of memory while initializing NameSet.\n");
-        goto error; 
-    }
-
+    /* Init the shared identifier set */
+    g_used_names = (NameSet*)malloc(sizeof *g_used_names);
+    if (!g_used_names) { perror("NameSet OOM"); return false; }
     ns_init(g_used_names);
 
-    /*----------  Stage 0 : Pre-assembler  ----------*/
+    /* ---------- Stage 0: pre-assembler ---------- */
     if (!preassemble(as_path, am_path)) {
-        goto error;
+        ns_free(g_used_names, NULL); free(g_used_names);
+        return false;
     }
 
-     /*----------  Stage 1 : Pass-1  ----------*/
+    /* ---------- Stage 1 ---------- */
     {
-        Pass1Result p1 = {0};
+        Pass1Result p1;
+        Pass2Result p2;
+        int ok;
+
+        memset(&p1, 0, sizeof p1);
         if (!pass1_run(am_path, &p1) || !p1.ok) {
-            DEBUG("Pass-1 failed for %s", as_path);
-            errors_print(&p1.errors, as_path);   /* show collected errors */
+            errors_print(&p1.errors, as_path);
             pass1_free(&p1);
-            goto error;
+            ns_free(g_used_names, NULL); free(g_used_names);
+            return false;
         }
         DEBUG("Pass-1 OK: IC=%d, DC=%d", p1.ic, p1.dc);
+
+        /* ---------- Stage 2 ---------- */
+        memset(&p2, 0, sizeof p2);
+        ok = pass2_run(am_path, &p1, &p2);
+        if (!ok || !p2.ok || errors_count(p2.errors) > 0) {
+            if (p2.errors) errors_print(p2.errors, as_path);
+            pass2_free(&p2);
+            pass1_free(&p1);
+            ns_free(g_used_names, NULL); free(g_used_names);
+            return false;      /* do not emit any files on failure */
+        }
+
+        /* .ob is always written on full success */
+        fp = fopen(path_ob, "w");
+        if (fp) {
+            output_write_ob(fp, &p1, &p2);
+            fclose(fp);
+        }
+
+        /* Only create .ext/.ent if they have content */
+        if (p2.ext_len > 0) {
+            fp = fopen(path_ext, "w");
+            if (fp) { output_write_ext(fp, &p2); fclose(fp); }
+        }
+        if (p2.ent_len > 0) {
+            fp = fopen(path_ent, "w");
+            if (fp) { output_write_ent(fp, &p2); fclose(fp); }
+        }
+
+        pass2_free(&p2);
         pass1_free(&p1);
     }
 
-    /* ----------  Stage 2 : Pass-2  ---------- */
-    Pass2Result p2;
-    char path_ob[PATH_MAX], path_ent[PATH_MAX], path_ext[PATH_MAX];
-    /* build <base>.ob/.ent/.ext into the buffers ... */
-
-    if (!pass2_run(am_path, &p1, &p2) || !p2.ok || errors_count(p2.errors) > 0) {
-        errors_print(p2.errors, source_name);  
-        pass2_free(&p2);
-        /* on failure, DO NOT emit any files */
-        /* ... clean and return ... */
-    }
-
-    /* .ob is always written on success */
-    if ((fp = fopen(path_ob, "w")) != NULL) {
-        output_write_ob(fp, &p1, &p2);
-        fclose(fp);
-    }
-
-    /* Only create .ext/.ent if there is content */
-    if (p2.ext_len > 0 && (fp = fopen(path_ext, "w")) != NULL) {
-        output_write_ext(fp, &p2);
-        fclose(fp);
-    }
-    if (p2.ent_len > 0 && (fp = fopen(path_ent, "w")) != NULL) {
-        output_write_ent(fp, &p2);
-        fclose(fp);
-    }
-
-    pass2_free(&p2);
-    goto success;
-
-error:
-    DEBUG("Pre-assembly failed for %s", as_path);
-    ns_free(g_used_names, NULL);
-    free(g_used_names);
-    return false;
-
-success:
-    DEBUG("Pre-assembly successful, output: %s", am_path);
-    /* remove(am_path); */
+    /* Optional: remove(am_path); */
     ns_free(g_used_names, NULL);
     free(g_used_names);
     return true;

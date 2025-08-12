@@ -89,3 +89,7 @@ void errors_print(const Errors *e, const char *filename) {
             fprintf(stderr, "%d: %s\n", e->items[i].line, e->items[i].msg);
     }
 }
+
+int errors_count(const Errors *e) {
+    return e ? (int)e->len : 0;
+}

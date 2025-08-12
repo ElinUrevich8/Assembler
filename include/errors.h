@@ -31,4 +31,7 @@ void errors_merge(Errors *dst, const Errors *src);
 /* Print errors to stderr as: "filename:line: message". */
 void errors_print(const Errors *e, const char *filename);
 
+/* Returns number of collected errors (0 if NULL). */
+int errors_count(const Errors *errs);
+
 #endif /* ERRORS_H */

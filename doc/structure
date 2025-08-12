@@ -20,7 +20,7 @@ assembler-project/
 │  └─ symbols.h              ← Symbol table types/API (CODE/DATA/EXTERN/ENTRY)
 │
 ├─ src/                      ← Actual C implementation
-│  ├─ assembler.c            ← Orchestrates: preassemble → pass1 (global NameSet)
+│  ├─ assembler.c            ← Orchestrates: preassemble -> pass1 (global NameSet)
 │  ├─ codeimg.c              ← Image storage, push_word, relocate data after code
 │  ├─ debug.c                ← Debug helpers
 │  ├─ encoding.c             ← .data/.string/.mat parsing; unified errors; size estimate

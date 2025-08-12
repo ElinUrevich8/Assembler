@@ -1,5 +1,5 @@
 /*============================================================================
- *  macro.h — store macro definitions (name → body string)
+ *  macro.h — store macro definitions (name -> body string)
  *============================================================================*/
 #ifndef MACRO_H
 #define MACRO_H

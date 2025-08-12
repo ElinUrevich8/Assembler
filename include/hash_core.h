@@ -2,7 +2,7 @@
  *  hash_core.h
  *
  *  Low-level, generic chained hash table.
- *  Stores (key → value) where both are `void*`.
+ *  Stores (key -> value) where both are `void*`.
  *  Never included directly by user code; only by thin wrappers
  *  such as nameset.c or macro.c.
  *============================================================================*/

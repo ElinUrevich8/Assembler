@@ -69,7 +69,7 @@ bool macro_define(MacroTable *mt,
             return false;
         }
 
-        /* Insert into the local hash (name → dup) */
+        /* Insert into the local hash (name -> dup) */
         if (!hc_insert(&mt->core, name, dup)) {
             /* Should not happen (uniqueness already enforced) */
             free(dup);

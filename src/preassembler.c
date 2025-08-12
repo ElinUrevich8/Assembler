@@ -15,6 +15,7 @@
 #include "macro.h"        /* MacroTable API                        */
 #include "preassembler.h" /* prototype                             */
 #include "debug.h"
+#include "encoding.h"
 #include "assembler.h"    /* brings: extern NameSet *g_used_names */
 #include "identifiers.h"  /* is_valid_macro_name / is_reserved_identifier */
 
@@ -47,6 +48,7 @@ bool preassemble(const char *in_path, const char *out_path)
     /*------------------------------------------------------------------*/
     while (fgets(line, sizeof line, in)) {
         ++line_no;
+        strip_comment_inplace(line);
 
         /* check line length (visible chars > MAX_LINE_LEN) */
         if (strlen(line) > MAX_LINE_LEN &&
@@ -67,7 +69,7 @@ bool preassemble(const char *in_path, const char *out_path)
                 *end = '\0';
             }
 
-            /* empty or comment line → copy as-is */
+            /* empty or comment line -> copy as-is */
             if (*trim == '\0' || *trim == ';') {
                 fputs(line, out);
                 continue;

@@ -6,6 +6,11 @@
 #include "errors.h"
 #include "codeimg.h"
 
+/* Remove a ';' comment unless it's inside a quoted string.
+ * Modifies the line in-place.
+ */
+void strip_comment_inplace(char *s);
+
 /* ===== Addressing modes (bitmask for legality tables) =====
  * Note: the 2-bit FIELD CODES in the machine word are defined in isa.h.
  * These values are only for "allowed modes" masks and APIs.

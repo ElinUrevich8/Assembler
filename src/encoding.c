@@ -438,7 +438,7 @@ bool encoding_estimate_size(const char *instr, EncodedInstrSize *sz,
         src = parse_operand(e, &e, tmp_sym, sizeof tmp_sym);
         if (src == ADR_INVALID) { errors_addf(errs, lineno, "invalid source operand"); return false; }
 
-        /* if label followed by [rX][rY] → matrix */
+        /* if label followed by [rX][rY] -> matrix */
         if (src == ADR_DIRECT) {
             int row, col;
             if (parse_matrix_suffix(e, &e2, &row, &col)) {
@@ -525,10 +525,12 @@ bool encoding_parse_instruction(const char *line, ParsedInstr *out,
 {
     char mnem[32];
     const char *p, *e, *peek, *e2;
+    const char *op_start;      /* NEW: remember where the operand starts */
     const OpSpec *spec;
     AddrMode src, dst;
     long v;
     int r;
+    const char *tmp_end;       /* for immediate/register reparsing */
 
     memset(out, 0, sizeof(*out));
     out->src_mode = ADR_INVALID;
@@ -547,15 +549,16 @@ bool encoding_parse_instruction(const char *line, ParsedInstr *out,
         if (*peek == ',' || *peek == '\0' || *peek == ';') { errors_addf(errs, lineno, "missing source operand"); return false; }
 
         /* src */
+        op_start = p;  /* remember the operand token start */
         src = parse_operand(p, &e, out->src_sym, sizeof out->src_sym);
         if (src == ADR_INVALID) { errors_addf(errs, lineno, "invalid source operand"); return false; }
 
         /* immed/reg payload (if needed) */
         if (src == ADR_IMMEDIATE) {
-            if (!parse_int10(skip_ws(p + 1), &p, &v)) { errors_addf(errs, lineno, "invalid immediate"); return false; }
+            if (!parse_int10(skip_ws(op_start) + 1, &tmp_end, &v)) { errors_addf(errs, lineno, "invalid immediate"); return false; }
             out->src_imm = v;
         } else if (src == ADR_REGISTER) {
-            if (!parse_register(skip_ws(p), &p, &r)) { errors_addf(errs, lineno, "invalid register"); return false; }
+            if (!parse_register(skip_ws(op_start), &tmp_end, &r)) { errors_addf(errs, lineno, "invalid register"); return false; }
             out->src_reg = r;
         } else if (src == ADR_DIRECT) {
             int row, col;
@@ -574,15 +577,16 @@ bool encoding_parse_instruction(const char *line, ParsedInstr *out,
         if (*peek == '\0' || *peek == ';') { errors_addf(errs, lineno, "missing destination operand"); return false; }
 
         /* dst */
+        op_start = p;  /* remember the operand token start */
         dst = parse_operand(p, &e, out->dst_sym, sizeof out->dst_sym);
         if (dst == ADR_INVALID) { errors_addf(errs, lineno, "invalid destination operand"); return false; }
 
         if (dst == ADR_IMMEDIATE) {
-            if (*skip_ws(p) != '#') { errors_addf(errs, lineno, "invalid immediate"); return false; }
-            if (!parse_int10(skip_ws(p) + 1, &p, &v)) { errors_addf(errs, lineno, "invalid immediate"); return false; }
+            if (*skip_ws(op_start) != '#') { errors_addf(errs, lineno, "invalid immediate"); return false; }
+            if (!parse_int10(skip_ws(op_start) + 1, &tmp_end, &v)) { errors_addf(errs, lineno, "invalid immediate"); return false; }
             out->dst_imm = v;
         } else if (dst == ADR_REGISTER) {
-            if (!parse_register(skip_ws(p), &p, &r)) { errors_addf(errs, lineno, "invalid register"); return false; }
+            if (!parse_register(skip_ws(op_start), &tmp_end, &r)) { errors_addf(errs, lineno, "invalid register"); return false; }
             out->dst_reg = r;
         } else if (dst == ADR_DIRECT) {
             int row2, col2;
@@ -608,15 +612,16 @@ bool encoding_parse_instruction(const char *line, ParsedInstr *out,
 
     /* 1-operand */
     if (spec->argc == 1) {
+        op_start = p;
         dst = parse_operand(p, &e, out->dst_sym, sizeof out->dst_sym);
         if (dst == ADR_INVALID) { errors_addf(errs, lineno, "invalid operand"); return false; }
 
         if (dst == ADR_IMMEDIATE) {
-            if (*skip_ws(p) != '#') { errors_addf(errs, lineno, "invalid immediate"); return false; }
-            if (!parse_int10(skip_ws(p) + 1, &p, &v)) { errors_addf(errs, lineno, "invalid immediate"); return false; }
+            if (*skip_ws(op_start) != '#') { errors_addf(errs, lineno, "invalid immediate"); return false; }
+            if (!parse_int10(skip_ws(op_start) + 1, &tmp_end, &v)) { errors_addf(errs, lineno, "invalid immediate"); return false; }
             out->dst_imm = v;
         } else if (dst == ADR_REGISTER) {
-            if (!parse_register(skip_ws(p), &p, &r)) { errors_addf(errs, lineno, "invalid register"); return false; }
+            if (!parse_register(skip_ws(op_start), &tmp_end, &r)) { errors_addf(errs, lineno, "invalid register"); return false; }
             out->dst_reg = r;
         } else if (dst == ADR_DIRECT) {
             int row3, col3;
@@ -643,4 +648,25 @@ bool encoding_parse_instruction(const char *line, ParsedInstr *out,
     }
     out->argc = 0;
     return true;
+}
+
+/* Remove a ';' comment unless it's inside a quoted string. In-place. */
+void strip_comment_inplace(char *s) {
+    int in_str = 0;   /* inside "..." */
+    int esc    = 0;   /* previous char was backslash */
+    char *p;
+
+    if (!s) return;
+    for (p = s; *p; ++p) {
+        char c = *p;
+        if (in_str) {
+            if (esc) { esc = 0; continue; }
+            if (c == '\\') { esc = 1; continue; }   /* allow \" and \\ */
+            if (c == '\"') in_str = 0;
+            continue;
+        } else {
+            if (c == '\"') { in_str = 1; continue; }
+            if (c == ';') { *p = '\0'; break; }     /* kill comment */
+        }
+    }
 }

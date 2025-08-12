@@ -172,7 +172,7 @@ static void handle_directive(const char *p, const char *label,
     if (has_prefix(p, ".extern")) {
         char name[128];
 
-        /* Spec: a label before .extern is meaningless → ignore (no error) */
+        /* Spec: a label before .extern is meaningless -> ignore (no error) */
         (void)label;
 
         if (!parse_symbol_name(p + 7, name, sizeof name)) {
@@ -189,7 +189,7 @@ static void handle_directive(const char *p, const char *label,
     if (has_prefix(p, ".entry")) {
         char name[128];
 
-        /* Spec: a label before .entry is meaningless → ignore (no error) */
+        /* Spec: a label before .entry is meaningless -> ignore (no error) */
         (void)label;
 
         if (!parse_symbol_name(p + 6, name, sizeof name)) {
@@ -286,6 +286,7 @@ bool pass1_run(const char *am_path, Pass1Result *out) {
     lineno = 0;
     while (fgets(buf, sizeof buf, fp)) {
         lineno++;
+        strip_comment_inplace(buf);
         handle_line(buf, out, lineno);
     }
     fclose(fp);

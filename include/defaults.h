@@ -20,8 +20,8 @@
 /*-------------------------------------------------------------------------*/
 /*  Source-file syntax limits (per spec)                                    */
 /*-------------------------------------------------------------------------*/
-/* Maximum characters in a single source line, including the final '\n'   */
-#define MAX_LINE_LEN      81
+/* Maximum characters in a single source line, excluding the final '\n'   */
+#define MAX_LINE_LEN      80
 /* Maximum characters in a label or macro name ,including terminating NUL  */
 #define MAX_LABEL_LEN     31  
 
@@ -76,5 +76,23 @@
 /*-------------------------------------------------------------------------*/
 #define ASM_SUCCESS     0
 #define ASM_FAILURE     1
+
+
+/* ---------- Base-4 formatting for .ob ---------- */
+#define BASE4_CHAR_0 'a'
+#define BASE4_CHAR_1 'b'
+#define BASE4_CHAR_2 'c'
+#define BASE4_CHAR_3 'd'
+
+/* 10-bit word -> 5 base-4 digits */
+#define BASE4_WORD_STRLEN 5
+
+/* Address column padding in .ob:
+   0  = trim (no fixed width)
+   4+ = fixed width (use 4 if you want address like "bbcc", etc.) */
+#ifndef OB_ADDR_PAD_WIDTH
+#define OB_ADDR_PAD_WIDTH 0
+#endif
+
 
 #endif /* DEFAULTS_H */

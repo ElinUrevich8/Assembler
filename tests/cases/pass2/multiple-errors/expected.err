@@ -1,0 +1,4 @@
+/mnt/hgfs/Assembler/tests/cases/pass2/multiple-errors/test.as:1: unknown mnemonic 'muv'
+/mnt/hgfs/Assembler/tests/cases/pass2/multiple-errors/test.as:2: illegal label name 'EXT_LAB'
+/mnt/hgfs/Assembler/tests/cases/pass2/multiple-errors/test.as:3: illegal label name 'gblhlm5569323232323mvcxxxvvxzvxvxfvclkkmj87hyid74' (too long)
+Assembly failed for /mnt/hgfs/Assembler/tests/cases/pass2/multiple-errors/test.as

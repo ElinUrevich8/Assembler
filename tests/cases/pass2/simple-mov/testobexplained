@@ -1,0 +1,4 @@
+d a
+bcba aaada   ; first word: mov, src=#, dst=reg
+bcbb aaaba   ; immediate #1
+bcbc aaaba   ; register r1 

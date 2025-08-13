@@ -175,13 +175,13 @@ static const OpSpec OPS[] = {
     {"not",   6, 1, 0,          AM_NOIMM},
     {"inc",   7, 1, 0,          AM_NOIMM},
     {"dec",   8, 1, 0,          AM_NOIMM},
-    {"jmp",   9, 1, 0,          AM_ONLYDIR}, /* dst: 1,2 */
-    {"bne",  10, 1, 0,          AM_ONLYDIR},
-    {"jsr",  11, 1, 0,          AM_ONLYDIR},
-    {"red",  12, 1, 0,          AM_NOIMM},
-    {"prn",  13, 1, 0,          AM_ALL},     /* allows #imm */
-    {"rts",  14, 0, 0,          0},
-    {"stop", 15, 0, 0,          0}
+    {"jmp",  9,  1, 0, AM_ONLYDIR},
+    {"bne", 10,  1, 0, AM_ONLYDIR},
+    {"red", 11,  1, 0, AM_NOIMM},   /* read char to register */
+    {"prn", 12,  1, 0, AM_ALL},     /* print operand; allows #imm */
+    {"jsr", 13,  1, 0, AM_ONLYDIR}, /* jump to subroutine (direct/matrix only) */
+    {"rts", 14,  0, 0, 0},
+    {"stop",15,  0, 0, 0}
 };
 static const size_t OPS_LEN = sizeof(OPS) / sizeof(OPS[0]);
 

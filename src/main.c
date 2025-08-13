@@ -8,30 +8,30 @@
 #include <string.h>
 
 /*--------------------------------------------------------------*/
-/*  Process a single .as file                                   */
+/*  Process a single source file name (with or without .as)     */
 /*--------------------------------------------------------------*/
-static bool process_file(const char *as_path)
+static bool process_file(const char *arg)
 {
-    char base[MAX_SRC_PATH];     /* path without the ".as" suffix */
-    char *dot;
+    char base[MAX_SRC_PATH];
+    const char *dot = strrchr(arg, '.');
 
-    /* copy input path into a mutable buffer */
-    strncpy(base, as_path, sizeof base - 1);
-    base[sizeof base - 1] = '\0';
-
-    /* verify that the extension is ".as" and strip it */
-    dot = strrchr(base, '.');
-    if (!dot || strcmp(dot, EXT_AS) != 0) {          /* EXT_AS from defaults.h */
-        fprintf(stderr, "Error: '%s' must have %s extension\n",
-                as_path, EXT_AS);
-        return false;
+    /* If the user provided .../name.as -> strip the .as.
+       Otherwise treat the whole arg as the base name. */
+    if (dot && strcmp(dot, EXT_AS) == 0) {
+        size_t blen = (size_t)(dot - arg);
+        if (blen >= sizeof base) blen = sizeof base - 1;
+        memcpy(base, arg, blen);
+        base[blen] = '\0';
+    } else {
+        /* no extension in arg (preferred by the spec) */
+        strncpy(base, arg, sizeof base - 1);
+        base[sizeof base - 1] = '\0';
     }
-    *dot = '\0';                                     /* now 'base' holds <path> */
 
-    printf(">>> Processing %s\n", as_path);
+    printf(">>> Processing %s.as\n", base);
 
     if (!assemble_file(base)) {
-        fprintf(stderr, "Assembly failed for %s\n", as_path);
+        fprintf(stderr, "Assembly failed for %s.as\n", base);
         return false;
     }
     return true;

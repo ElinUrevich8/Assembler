@@ -1,12 +1,30 @@
 # Assembler Project
 
-A two-pass assembler with a macro prepass, written in C90.  
+A two-pass assembler with a macro prepass.  
 It processes `.as` source files, expands macros, parses and encodes instructions, resolves symbols, and produces:
 
 - **`.ob`** — object file in a custom base-4 alphabet (`a=0, b=1, c=2, d=3`)
 - **`.ent`** — entry symbols and their addresses
 - **`.ext`** — extern symbols’ usage sites
 
+---
+##  Build & Run
+
+### Build
+```
+make
+./assembler file file2
+```
+
+## Clean
+```
+make clean
+```
+
+## Run Tests
+```
+make test
+```
 ---
 
 ##  High-Level Pipeline
@@ -102,22 +120,4 @@ It processes `.as` source files, expands macros, parses and encodes instructions
 │ ├── pass2/...
 │ └── preassembler/...
 └── run_test.py
-```
-
-##  Build & Run
-
-### Build
-```
-make
-./assembler file file2
-```
-
-## Clean
-```
-make clean
-```
-
-## Run Tests
-```
-make test
 ```

@@ -1,0 +1,2 @@
+Error: unclosed macro 'VALID'
+Assembly failed for /mnt/hgfs/Assembler/tests/cases/preassembler/invalid-macro-name-in-end/test.as

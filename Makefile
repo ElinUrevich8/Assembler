@@ -17,7 +17,7 @@ OBJS    := $(SRCS:src/%.c=$(OBJDIR)/%.o)
 assembler: $(OBJS)
 	$(CC) $(CFLAGS) $^ -o $@
 
-# ------------ pattern rule: .c → build/%.o -------------------------------
+# ------------ pattern rule: .c -> build/%.o -------------------------------
 # first command makes sure the directory exists
 # single implicit rule (no second rule for 'build')
 $(OBJDIR)/%.o: src/%.c

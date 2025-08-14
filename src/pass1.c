@@ -1,3 +1,21 @@
+/*============================================================================
+ *  pass1.c
+ *
+ *  First pass:
+ *    - Parse labels, directives, and instructions from the .am file.
+ *    - Build the symbol table, generate the data image, and reserve code size
+ *      by pushing placeholder words into the code image.
+ *    - Validate names and enforce “single namespace with macros”.
+ *    - Collect all diagnostics (do not stop on first error).
+ *
+ *  Output:
+ *    Pass1Result with:
+ *      symbols  — table of CODE/DATA/EXTERN/ENTRY with addresses
+ *      code     — code image with placeholder words
+ *      data     — data image (raw data words)
+ *      ic, dc   — final counters
+ *============================================================================*/
+
 #include <stdio.h>
 #include <string.h>
 #include <ctype.h>
@@ -9,7 +27,7 @@
 
 /* --- small local helpers -------------------------------- */
 
-/* Returns non-zero if s starts with prefix (C90-friendly). */
+/* Returns non-zero if s starts with prefix (tiny utility). */
 static int has_prefix(const char *s, const char *prefix) {
     while (*prefix) {
         if (*s++ != *prefix++) return 0;
@@ -172,7 +190,7 @@ static void handle_directive(const char *p, const char *label,
     if (has_prefix(p, ".extern")) {
         char name[128];
 
-        /* Spec: a label before .extern is meaningless → ignore (no error) */
+        /* Spec: a label before .extern is meaningless -> ignore (no error) */
         (void)label;
 
         if (!parse_symbol_name(p + 7, name, sizeof name)) {
@@ -189,7 +207,7 @@ static void handle_directive(const char *p, const char *label,
     if (has_prefix(p, ".entry")) {
         char name[128];
 
-        /* Spec: a label before .entry is meaningless → ignore (no error) */
+        /* Spec: a label before .entry is meaningless -> ignore (no error) */
         (void)label;
 
         if (!parse_symbol_name(p + 6, name, sizeof name)) {
@@ -286,6 +304,7 @@ bool pass1_run(const char *am_path, Pass1Result *out) {
     lineno = 0;
     while (fgets(buf, sizeof buf, fp)) {
         lineno++;
+        strip_comment_inplace(buf);
         handle_line(buf, out, lineno);
     }
     fclose(fp);

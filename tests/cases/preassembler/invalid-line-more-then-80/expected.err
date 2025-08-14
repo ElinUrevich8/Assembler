@@ -1,0 +1,2 @@
+Error(line 2): line exceeds 80 characters
+Assembly failed for /mnt/hgfs/Assembler/tests/cases/preassembler/invalid-line-more-then-80/test.as

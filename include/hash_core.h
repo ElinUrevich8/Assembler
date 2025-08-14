@@ -1,10 +1,13 @@
 /*============================================================================
  *  hash_core.h
  *
- *  Low-level, generic chained hash table.
- *  Stores (key → value) where both are `void*`.
- *  Never included directly by user code; only by thin wrappers
- *  such as nameset.c or macro.c.
+ *  Generic chained hash table: string key -> void* value.
+ *  Internal helper used by higher-level modules (e.g., nameset, macro).
+ *
+ *  Notes:
+ *   - Collisions are handled via forward-linked lists per bucket.
+ *   - Caller owns the value memory; hc_free() accepts an optional
+ *     destructor for values.
  *============================================================================*/
 
 #ifndef HASH_CORE_H
@@ -12,29 +15,27 @@
 
 #include <stddef.h>   /* size_t */
 
+#define HASH_SIZE 113           /* Prime bucket count for better spread */
 
-#define HASH_SIZE 113           /* must match buckets[] length   */
-
-/*-----------  Node & table definitions  -----------------------------------*/
+/* Node stored in a bucket’s forward list */
 struct HCNode {
-    char           *key;      /* heap-allocated copy of the key string */
-    void           *val;      /* caller-supplied payload                */
-    struct HCNode  *next;     /* next node in bucket chain              */
+    char           *key;      /* heap copy of key string          */
+    void           *val;      /* caller-managed payload           */
+    struct HCNode  *next;     /* next node in chain               */
 };
 
 typedef struct {
-    struct HCNode *buckets[HASH_SIZE]; /* prime bucket count gives better spread */
+    struct HCNode *buckets[HASH_SIZE];
 } HashCore;
 
-/*-----------  API  --------------------------------------------------------*/
-/* Initialise / destroy */
+/* Lifecycle */
 void  hc_init(HashCore *hc);
 void  hc_free(HashCore *hc, void (*free_val)(void*));
 
-/* Insert – return 1 on success, 0 if key already exists or OOM            */
+/* Insert — returns 1 on success, 0 if key exists or OOM. */
 int   hc_insert(HashCore *hc, const char *key, void *val);
 
-/* Lookup – NULL if not found                                              */
+/* Lookup — returns value pointer or NULL if not found. */
 void *hc_find  (const HashCore *hc, const char *key);
 
 #endif /* HASH_CORE_H */

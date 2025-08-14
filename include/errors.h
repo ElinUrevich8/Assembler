@@ -1,34 +1,43 @@
+/*============================================================================
+ *  errors.h
+ *
+ *  Error aggregation for multi-stage assembly.
+ *
+ *  Usage:
+ *    Errors e = errors_new();
+ *    errors_addf(&e, lineno, "bad thing: %s", detail);
+ *    if (errors_count(&e)) errors_print(&e, filename);
+ *    errors_free(&e);
+ *============================================================================*/
+
 #ifndef ERRORS_H
 #define ERRORS_H
 
 #include <stddef.h>
 
-/* Single collected error message. */
 typedef struct {
-    int   line;   /* source line (0 if unknown) */
-    char *msg;    /* heap-allocated message */
+    int   line;   /* Source line (0 if unknown) */
+    char *msg;    /* Heap-allocated error text   */
 } ErrorItem;
 
-/* Growable list of errors. */
 typedef struct {
     ErrorItem *items;
     size_t     len;
     size_t     cap;
 } Errors;
 
-/* Create an empty error list. */
+/* Lifecycle */
 Errors errors_new(void);
+void   errors_free(Errors *e);
 
-/* Free all memory inside the list (messages + array). */
-void errors_free(Errors *e);
+/* Mutation */
+void   errors_addf(Errors *e, int line, const char *fmt, ...);
+void   errors_merge(Errors *dst, const Errors *src);
 
-/* Append a formatted error (like printf). */
-void errors_addf(Errors *e, int line, const char *fmt, ...);
+/* Reporting */
+void   errors_print(const Errors *e, const char *filename);
 
-/* Append all errors from 'src' into 'dst' (src remains valid). */
-void errors_merge(Errors *dst, const Errors *src);
-
-/* Print errors to stderr as: "filename:line: message". */
-void errors_print(const Errors *e, const char *filename);
+/* Introspection */
+int    errors_count(const Errors *errs);
 
 #endif /* ERRORS_H */

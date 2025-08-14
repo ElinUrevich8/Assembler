@@ -1,54 +1,44 @@
 /*============================================================================
  *  defaults.h
  *
- *  Centralised project-wide constants and small compatibility helpers.
- *  Target platform: standard Ubuntu / GCC (but keep ANSI-C90 fallback).
+ *  Centralised constants and cross-platform fallbacks.
+ *
+ *  Highlights:
+ *  - Source constraints (MAX_LINE_LEN, MAX_LABEL_LEN)
+ *  - Machine model (10-bit WORD_SIZE_BITS, IC_START, base-4 alphabet)
+ *  - Paths and extensions (.as/.am/.ob/.ent/.ext)
  *============================================================================*/
 
 #ifndef DEFAULTS_H
 #define DEFAULTS_H
 
-/*-------------------------------------------------------------------------*/
-/*  System limits                                                           */
-/*-------------------------------------------------------------------------*/
-#include <limits.h>            /* Brings PATH_MAX, NAME_MAX, etc.          */
+#include <limits.h>            /* PATH_MAX, NAME_MAX, … */
 
-#ifndef PATH_MAX               /* Fallback for exotic tool-chains          */
+/* Fallbacks for non-POSIX toolchains */
+#ifndef PATH_MAX
 #define PATH_MAX 4096
 #endif
 
-/*-------------------------------------------------------------------------*/
-/*  Source-file syntax limits (per spec)                                    */
-/*-------------------------------------------------------------------------*/
-/* Maximum characters in a single source line, including the final '\n'   */
-#define MAX_LINE_LEN      80
-/* Maximum characters in a label or macro name ,including terminating NUL  */
-#define MAX_LABEL_LEN     31  
+/* ---------- Source syntax limits (per spec) ---------- */
+#define MAX_LINE_LEN      80    /* excluding trailing '\n'                   */
+#define MAX_LABEL_LEN     31    /* includes terminating NUL                  */
 
+/* ---------- Assembler / machine parameters ---------- */
+#define WORD_SIZE_BITS    10    /* 10-bit machine word                       */
+#define MEMORY_CAPACITY  256    /* address space 0..255                      */
+#define IC_START         100    /* program code base address                  */
+#define MAX_OPERANDS       2
 
-/*-------------------------------------------------------------------------*/
-/*  Assembler / machine parameters                                          */
-/*-------------------------------------------------------------------------*/
-#define WORD_SIZE_BITS    10   /* Our imaginary CPU uses 10-bit words       */
-#define MEMORY_CAPACITY  256   /* Address space: 0–255 inclusive            */
-#define IC_START         100   /* Program code starts from address 100      */
-#define MAX_OPERANDS       2   /* ISA never has more than two operands      */
-
-/* Back-compat: some modules expect IC_INIT */
 #ifndef IC_INIT
 #define IC_INIT IC_START
 #endif
 
-/*-------------------------------------------------------------------------*/
-/*  Derived helper sizes                                                    */
-/*-------------------------------------------------------------------------*/
-#define MAX_SRC_PATH  (PATH_MAX)               /* Buffer for input file path */
-#define MAX_AM_PATH   (PATH_MAX + 3)           /* room for ".am" + NUL       */
-#define MAX_O_PATH    (PATH_MAX + 2)           /* room for ".o" + NUL       */
+/* ---------- Derived buffer sizes ---------- */
+#define MAX_SRC_PATH  (PATH_MAX)
+#define MAX_AM_PATH  (PATH_MAX + 4)  /* ".am"  */
+#define MAX_OB_PATH  (PATH_MAX + 4)  /* ".ob"  */
 
-/*-------------------------------------------------------------------------*/
-/*  Boolean type fallback for strict C90                                    */
-/*-------------------------------------------------------------------------*/
+/* ---------- C90 boolean fallback ---------- */
 #if defined(__STDC_VERSION__) && __STDC_VERSION__ >= 199901L
   #include <stdbool.h>
 #else
@@ -60,29 +50,27 @@
   #endif
 #endif
 
-/*-------------------------------------------------------------------------*/
-/*  Unique base-4 printing helpers                                          */
-/*-------------------------------------------------------------------------*/
-#define BASE4_CHAR_0  'a'
-#define BASE4_CHAR_1  'b'
-#define BASE4_CHAR_2  'c'
-#define BASE4_CHAR_3  'd'
-#define BASE4_WORD_STRLEN 5     /* Each 10-bit word prints as 5 characters  */
-
-/*--------------------------------------------------*/
-/*  File-extension constants                        */
-/*--------------------------------------------------*/
+/* ---------- File extensions ---------- */
 #define EXT_AS   ".as"
 #define EXT_AM   ".am"
-#define EXT_O    ".o"
+#define EXT_OB   ".ob"
 #define EXT_ENT  ".ent"
 #define EXT_EXT  ".ext"
 
-
-/*-------------------------------------------------------------------------*/
-/*  Misc. return codes                                                      */
-/*-------------------------------------------------------------------------*/
+/* ---------- Return codes ---------- */
 #define ASM_SUCCESS     0
 #define ASM_FAILURE     1
+
+/* ---------- Base-4 printing (a/b/c/d) ---------- */
+#define BASE4_CHAR_0 'a'
+#define BASE4_CHAR_1 'b'
+#define BASE4_CHAR_2 'c'
+#define BASE4_CHAR_3 'd'
+#define BASE4_WORD_STRLEN 5     /* 10 bits -> 5 base-4 digits */
+
+/* Address column left padding (0 = trim; >=4 = fixed width) */
+#ifndef OB_ADDR_PAD_WIDTH
+#define OB_ADDR_PAD_WIDTH 0
+#endif
 
 #endif /* DEFAULTS_H */

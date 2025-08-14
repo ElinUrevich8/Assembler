@@ -104,7 +104,7 @@ It processes `.as` source files, expands macros, parses and encodes instructions
 └── run_test.py
 ```
 
-## 🔧 Build & Run
+##  Build & Run
 
 ### Build
 ```

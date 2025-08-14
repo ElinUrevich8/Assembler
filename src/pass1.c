@@ -1,3 +1,21 @@
+/*============================================================================
+ *  pass1.c
+ *
+ *  First pass:
+ *    - Parse labels, directives, and instructions from the .am file.
+ *    - Build the symbol table, generate the data image, and reserve code size
+ *      by pushing placeholder words into the code image.
+ *    - Validate names and enforce “single namespace with macros”.
+ *    - Collect all diagnostics (do not stop on first error).
+ *
+ *  Output:
+ *    Pass1Result with:
+ *      symbols  — table of CODE/DATA/EXTERN/ENTRY with addresses
+ *      code     — code image with placeholder words
+ *      data     — data image (raw data words)
+ *      ic, dc   — final counters
+ *============================================================================*/
+
 #include <stdio.h>
 #include <string.h>
 #include <ctype.h>
@@ -9,7 +27,7 @@
 
 /* --- small local helpers -------------------------------- */
 
-/* Returns non-zero if s starts with prefix (C90-friendly). */
+/* Returns non-zero if s starts with prefix (tiny utility). */
 static int has_prefix(const char *s, const char *prefix) {
     while (*prefix) {
         if (*s++ != *prefix++) return 0;

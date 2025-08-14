@@ -1,15 +1,24 @@
+/*============================================================================
+ *  nameset.c
+ *
+ *  Minimal string set for tracking “used names” (e.g., macro names) so later
+ *  passes can reject label/macro namespace collisions.
+ *  - Separate from the symbol table on purpose (this is just a set).
+ *  - Collision handling: separate chaining.
+ *============================================================================*/
+
 #include "nameset.h"
 #include <stdlib.h>
 #include <string.h>
 #include "hash_core.h"
 
-/* Define NSNode struct */
+/* Node for a bucket's linked list. */
 typedef struct NSNode {
     char *key;
     struct NSNode *next;
 } NSNode;
 
-/* C90-compatible strdup */
+/* strdup replacement */
 static char *my_strdup(const char *s) {
     size_t len = strlen(s) + 1;
     char *d = (char *)malloc(len);
@@ -17,6 +26,7 @@ static char *my_strdup(const char *s) {
     return d;
 }
 
+/* DJB2-ish hash reduced to HASH_SIZE buckets. */
 static unsigned hash(const char *s) {
     unsigned h = 5381;
     int c;
@@ -33,6 +43,7 @@ static NSNode *find(NSNode *n, const char *k) {
     return n;
 }
 
+/* Add a name; returns false on duplicate or OOM. */
 bool ns_add(NameSet *ns, const char *k) {
     unsigned idx = hash(k);
     NSNode *n;
@@ -45,17 +56,19 @@ bool ns_add(NameSet *ns, const char *k) {
     return true;
 }
 
+/* Membership test. */
 bool ns_contains(const NameSet *ns, const char *k) {
     return find(ns->buckets[hash(k)], k) != NULL;
 }
 
+/* Free all storage. (free_val is ignored—kept for API symmetry.) */
 void ns_free(NameSet *ns, void (*free_val)(void*)) {
     size_t i;
     for (i = 0; i < HASH_SIZE; i++) {
         NSNode *n = ns->buckets[i], *tmp;
         while (n) {
             tmp = n->next;
-            if (free_val) free_val(NULL); /* no value */
+            if (free_val) free_val(NULL); /* no value payload in this set */
             free(n->key);
             free(n);
             n = tmp;

@@ -2,7 +2,11 @@
  *  preassembler.c
  *
  *  Stage-0 driver: expands macros and writes <base>.am
- *  All diagnostics are printed here; returns true on success, false on error.
+ *  - Validates macro names and ensures they don't collide with reserved words.
+ *  - Keeps a global set of macro names so later passes can enforce a single
+ *    namespace (macro vs. label).
+ *  - Preserves non-macro lines verbatim (after comment/whitespace handling).
+ *  - All diagnostics are printed here; returns true on success.
  *============================================================================*/
 
 #include <stdio.h>
@@ -32,8 +36,8 @@ bool preassemble(const char *in_path, const char *out_path)
     size_t buf_cap    = 0, buf_len = 0;
     char   macro_name[MAX_LABEL_LEN + 1];
 
-    bool   in_macro   = false;          /* <<< was int, now bool */
-    bool   error      = false;          /* <<< was int, now bool */
+    bool   in_macro   = false;
+    bool   error      = false;
     int    line_no    = 0;
 
     /*------------------------------------------------------------------*/

@@ -1,4 +1,15 @@
-/* src/output.c — emit .ob, .ent, .ext in a/b/c/d base-4 format (C90) */
+/*============================================================================
+ *  output.c
+ *
+ *  Emit .ob, .ent, and .ext in the custom a/b/c/d base-4 format.
+ *
+ *  Conventions:
+ *    - Words are 10 bits wide -> fixed 5 base-4 characters.
+ *    - Addresses are printed either trimmed or left-padded (configurable).
+ *    - The .ob file begins with "<code_len> <data_len>" in base-4, then:
+ *        * final code image (starting at IC_INIT)
+ *        * data image (starting at final IC)
+ *============================================================================*/
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -64,7 +75,7 @@ static void b4_write_pad(unsigned int v, unsigned width, char pad_char,
     out[need] = '\0';
 }
 
-/* 10-bit word → fixed 5 base-4 chars (a=0). */
+/* 10-bit word -> fixed 5 base-4 chars (a=0). */
 static void b4_write_word10(unsigned int w10, char *out, size_t cap)
 {
     b4_write_pad(w10 & 0x3FFu, BASE4_WORD_STRLEN, base4_digit(0u), out, cap);

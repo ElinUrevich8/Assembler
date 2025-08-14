@@ -1,27 +1,19 @@
-/*==========================================================================
- *  Pass 2
- *  -------
- *  - Reads the preassembled & scanned file again (.am).
- *  - Uses encoding_parse_instruction() to re-parse each instruction line.
- *  - Finishes encoding by emitting the extra operand words:
- *      • immediates (A)
- *      • registers (A)
- *      • direct symbols (R or E + record to .ext)
- *      • matrix base label (R/E) + row/col registers (A)
- *  - Collects .entry output (name + final relocated address).
- *  - Produces the final code image (instructions only) into out->code_final.
- *  - Shares the Pass 1 Errors aggregator (prints all issues together).
+/*============================================================================
+ *  pass2.c
  *
- *  IMPORTANT FIX:
- *  --------------
- *  External symbol use-sites must be recorded at the exact address of the
- *  extra operand word that we push for them. To avoid off-by-one errors,
- *  we now increment the instruction counter (IC) *inside* the function that
- *  pushes the word. That way, the IC and the emitted words are always in
- *  lock-step, and .ext entries point to the correct addresses in the .ob.
+ *  Second pass:
+ *    - Re-scan the .am file for instruction lines.
+ *    - Parse each instruction (encoding_parse_instruction).
+ *    - Finish encoding: emit extra operand words in the required order
+ *      and with correct ARE bits (A/R/E), recording .ext uses as we go.
+ *    - Collect .entry outputs from the symbol table.
+ *    - Produce the final instruction image in out->code_final.
  *
- *  C90 compliant.
- *==========================================================================*/
+ *  Note on external-use addresses:
+ *    To keep .ext addresses exact, the IC increment for each emitted
+ *    operand word happens inside the helper that pushes that word. This
+ *    keeps the word-stream and the IC in lock-step.
+ *============================================================================*/
 
 #include <ctype.h>
 #include <string.h>
@@ -36,8 +28,7 @@
 
 /*---------------------------- small utilities ---------------------------*/
 
-/* C90-safe strdup:
- * Allocates a new buffer and copies the zero-terminated string into it. */
+/* strdup replacement: allocate new buffer and copy string. */
 static char *dup_c90(const char *s)
 {
     size_t n = strlen(s) + 1;
@@ -137,8 +128,7 @@ static int line_should_encode(const char **pline)
     return 1;
 }
 
-/* If an 8-bit payload is out of range, warn (the ISA encoders mask it anyway).
- * This helps catch suspicious immediates/addresses early. */
+/* If an 8-bit payload is out of range, note it (encoders mask anyway). */
 static void check_fit8(Errors *errs, int lineno, long v, const char *what)
 {
     if (v < -128 || v > 255) {
@@ -149,18 +139,15 @@ static void check_fit8(Errors *errs, int lineno, long v, const char *what)
 /*-------------------- operand: symbol extra-word emitter -----------------*/
 /* Emit one extra operand word for a symbol (DIRECT or MATRIX base label).
  *
- *  - If the symbol is undefined  → emit E-word + error
- *  - If the symbol is external   → record use-site (.ext) at current IC,
+ *  - If the symbol is undefined  -> emit E-word + error
+ *  - If the symbol is external   -> record use-site (.ext) at current IC,
  *                                  then emit E-word and advance IC
- *  - If the symbol is local      → emit R-word with the relocated address
+ *  - If the symbol is local      -> emit R-word with the relocated address
  *                                  and advance IC
  *
- *  IMPORTANT:
- *  ----------
- *  The instruction counter (*io_ic) is incremented INSIDE this function
- *  exactly when the extra word is pushed. This guarantees that:
- *    • the address recorded in .ext matches the actual word address, and
- *    • callers do NOT add an extra increment afterward (no off-by-one).
+ *  The instruction counter (*io_ic) is incremented INSIDE this function,
+ *  exactly when the extra word is emitted. This keeps .ext addresses exact
+ *  and avoids off-by-one bugs.
  */
 static void emit_symbol_operand(const char *name,
                                 int *io_ic,
@@ -178,8 +165,7 @@ static void emit_symbol_operand(const char *name,
     }
 
     if (s.is_extern) {
-        /* Record the address of the operand word we are about to emit.
-         * (IC points to that word BEFORE we push it.) */
+        /* Record address of the operand word we are about to emit. */
         ext_push(out, name, *io_ic);
         codeimg_push_word(&out->code_final, (int)isa_word_extern(), lineno);
         (*io_ic)++;
@@ -193,7 +179,7 @@ static void emit_symbol_operand(const char *name,
         return;
     }
 
-    /* Defensive: placeholders for truly weird states. */
+    /* Defensive: unreachable in normal flows. */
     errors_addf(out->errors, lineno, "undefined symbol '%s'", name);
     codeimg_push_word(&out->code_final, (int)isa_word_extern(), lineno);
     (*io_ic)++;

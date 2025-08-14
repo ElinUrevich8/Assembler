@@ -9,10 +9,10 @@ It processes `.as` source files, expands macros, parses and encodes instructions
 
 ---
 
-## 🚀 High-Level Pipeline
+##  High-Level Pipeline
 
 1. **Preassembler (`.as` → `.am`)**  
-   - Expands `mcro … endmcro` macros.  
+   - Expands `mcro … mcroend` macros.  
    - Strips comments/blank lines.  
    - Validates macro names.  
    - Outputs a macro-expanded `.am` file.
@@ -40,7 +40,7 @@ It processes `.as` source files, expands macros, parses and encodes instructions
 
 ---
 
-## 🧩 Module Responsibilities
+##  Module Responsibilities
 
 - **preassembler.c / macro.c** — Expand macros; write `.am`.  
 - **encoding.c** — Parse directives and instructions, estimate size, strip comments.  
@@ -56,7 +56,8 @@ It processes `.as` source files, expands macros, parses and encodes instructions
 
 ---
 
-## 📂 Project Structure
+##  Project Structure
+```
 ├── doc
 │ └── project-structure
 ├── include
@@ -101,6 +102,7 @@ It processes `.as` source files, expands macros, parses and encodes instructions
 │ ├── pass2/...
 │ └── preassembler/...
 └── run_test.py
+```
 
 ## 🔧 Build & Run
 

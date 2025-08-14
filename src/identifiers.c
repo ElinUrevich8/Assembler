@@ -1,3 +1,14 @@
+/*============================================================================
+ *  identifiers.c
+ *
+ *  Small helpers for validating identifier names used by the assembler:
+ *    - Reserved words (opcodes + directives)
+ *    - Label names (strict: letters/digits only, start with letter)
+ *    - Macro names  (allow underscore, start with letter)
+ *
+ *  Keep the reserved list centralized here.
+ *============================================================================*/
+
 #include <string.h>
 #include <ctype.h>
 #include "identifiers.h"
@@ -19,6 +30,12 @@ int is_reserved_identifier(const char *s)
     return 0;
 }
 
+/* Labels (for symbols in code/data):
+ *  - Must start with a letter
+ *  - Then letters or digits only (no underscore)
+ *  - Max length: MAX_LABEL_LEN
+ *  - Must NOT be a reserved word
+ */
 int is_valid_label_name_strict(const char *s)
 {
     const unsigned char *p = (const unsigned char*)s;
@@ -38,6 +55,7 @@ int is_valid_label_name_strict(const char *s)
     return 1;
 }
 
+/* Macro names are similar, but allow underscores after the first letter. */
 int is_valid_macro_name(const char *s)
 {
     const unsigned char *p = (const unsigned char*)s;

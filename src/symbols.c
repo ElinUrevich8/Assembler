@@ -1,16 +1,21 @@
-/* symbols.c
- * Simple array-backed symbol table.
- * - Names are owned (dup'ed) by this module and freed in symbols_free().
- * - Lookups are linear (OK for course-scale inputs).
- * - Iteration order is insertion order.
- */
+/*============================================================================
+ *  symbols.c
+ *
+ *  Simple array-backed symbol table.
+ *  - Names are duplicated on insert and freed by symbols_free().
+ *  - Lookups are linear (adequate for course-scale inputs).
+ *  - Iteration order is insertion order.
+ *
+ *  Symbol flags:
+ *      SYM_CODE, SYM_DATA, SYM_EXTERN, SYM_ENTRY
+ *============================================================================*/
 
 #include "symbols.h"
 #include <stdlib.h>
 #include <string.h>
 #include <stdio.h>   /* FILE, fprintf */
 
-/* C90-safe strdup replacement (allocates and copies the string). */
+/* strdup replacement (allocates and copies the string). */
 static char *dup_c90(const char *s) {
     size_t n = strlen(s) + 1;
     char *p = (char*)malloc(n);

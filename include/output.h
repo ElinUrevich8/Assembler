@@ -1,8 +1,17 @@
-/* output.h
- * Object/side-file writers.
- * Only create .ext/.ent when there is something to write.
- */
-
+/*============================================================================
+ *  output.h
+ *
+ *  Writers for object and side files.
+ *
+ *  Files:
+ *    - .ob  : object words (code then data), printed in base-4 a/b/c/d
+ *    - .ent : entries (name + final relocated address)
+ *    - .ext : extern use-sites (name + address of the operand word)
+ *
+ *  Policy:
+ *    - .ent/.ext are written ONLY if they would be non-empty.
+ *    - All functions return non-zero on success.
+ *============================================================================*/
 #ifndef OUTPUT_H
 #define OUTPUT_H
 
@@ -15,19 +24,16 @@
  *   <code_len> <data_len>                ; header, both in unique base-4
  *   <addr> <word>                        ; code words, IC_INIT..ICF-1
  *   <addr> <word>                        ; data words, ICF..ICF+DC-1
- * Returns non-zero on success.
  */
 int output_write_ob(FILE *fp, const Pass1Result *p1, const Pass2Result *p2);
 
-/* Write the entries file (.ent) iff p2->ent_len > 0.
+/* Write .ent iff there is at least one entry.
  * One line per entry: <name> <address-in-base-4>
- * Returns non-zero on success (if there is nothing to write, returns 1 and does nothing).
  */
 int output_write_ent(FILE *fp, const Pass2Result *p2);
 
-/* Write the externs file (.ext) iff p2->ext_len > 0.
+/* Write .ext iff there is at least one extern use-site.
  * One line per use-site: <name> <use-address-in-base-4>
- * Returns non-zero on success (if there is nothing to write, returns 1 and does nothing).
  */
 int output_write_ext(FILE *fp, const Pass2Result *p2);
 

@@ -1,16 +1,24 @@
 /*============================================================================
  *  hash_core.c
  *
- *  Implementation of the generic chained hash table declared in
- *  hash_core.h.  Uses the classic DJB2 hash function.
+ *  Generic chained hash table declared in hash_core.h.
+ *  - Keys are NUL-terminated strings (owned by the table).
+ *  - Values are opaque void* and are owned by the caller; supply a value
+ *    destructor to hc_free() if needed.
+ *  - Hash function: DJB2 (classic, simple, good enough for coursework).
+ *
+ *  Public surface:
+ *      void  hc_init(HashCore *hc);
+ *      void  hc_free(HashCore *hc, void (*free_val)(void*));
+ *      int   hc_insert(HashCore *hc, const char *key, void *val);   // 1=ok,0=dup/OOM
+ *      void* hc_find(const HashCore *hc, const char *key);          // NULL if missing
  *============================================================================*/
 
 #include "hash_core.h"
 #include <stdlib.h>
 #include <string.h>
 
-
-/* C90-compatible strdup */
+/* strdup replacement: allocate and copy string 's'. */
 static char *my_strdup(const char *s) {
     size_t len = strlen(s) + 1;
     char *d = (char *)malloc(len);
@@ -21,13 +29,13 @@ static char *my_strdup(const char *s) {
 }
 
 /*------------------------------------------------------------*/
-/*   Simple hash function                            */
+/*   DJB2 hash, bucketized by HASH_SIZE                       */
 /*------------------------------------------------------------*/
 static unsigned int hash(const char *str) {
     unsigned int hash_val;
     int c;
 
-    hash_val = 5381; 
+    hash_val = 5381;
     while ((c = *str++)) {
         hash_val = ((hash_val << 5) + hash_val) + c; /* hash * 33 + c */
     }
@@ -57,7 +65,7 @@ void hc_free(HashCore *hc, void (*free_val)(void*))
     }
 }
 
-/* return 0 => duplicate key OR OOM */
+/* Insert <key,val>. Returns 0 on duplicate key or allocation failure. */
 int hc_insert(HashCore *hc, const char *key, void *val) {
     struct HCNode *n;
     unsigned idx = hash(key);
@@ -81,6 +89,7 @@ int hc_insert(HashCore *hc, const char *key, void *val) {
     return 1;
 }
 
+/* Find the value for 'key' or NULL if absent. */
 void *hc_find(const HashCore *hc, const char *key)
 {
     unsigned idx = hash(key);

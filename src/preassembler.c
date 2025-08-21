@@ -12,9 +12,8 @@
  *      enforce a unified identifier namespace (macros vs. labels).
  *    - Emit diagnostics with line numbers and fail-fast on fatal errors.
  *
- *  Notes:
- *    - Macro names allow '_' (per project examples like `mc_a`); labels do not.
- *    - On any error, the output .am is removed and 'false' is returned.
+ *  Notes:  
+ *    - On any error at this stage, the output .am is removed and 'false' is returned.
  *============================================================================*/
 
 #include <stdio.h>
@@ -89,7 +88,7 @@ bool preassemble(const char *in_path, const char *out_path)
         trim = line;
         while (isspace((unsigned char)*trim)) ++trim;
         {
-            char *end; /* declare at block start (C90) */
+            char *end; 
             end = trim + strlen(trim);
             while (end > trim && isspace((unsigned char)end[-1])) --end;
             *end = '\0';
@@ -103,7 +102,6 @@ bool preassemble(const char *in_path, const char *out_path)
 
         /* -- Macro definition start ("mcro <name>") -- */
         if (strncmp(trim, "mcro", 4) == 0 && isspace((unsigned char)trim[4])) {
-            /* Decls at block start (C90): */
             const char *p;
             size_t nlen;
 
@@ -213,7 +211,7 @@ bool preassemble(const char *in_path, const char *out_path)
     fclose(out);
 
     if (error) {
-        remove(out_path); /* don’t leave a partial .am file */
+        remove(out_path); /* Rmove a partial .am file */
         return false;
     }
     return true;

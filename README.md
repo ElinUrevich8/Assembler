@@ -8,6 +8,27 @@ It processes `.as` source files, expands macros, parses and encodes instructions
 - **`.ext`** — extern symbols’ usage sites
 
 ---
+##  Build & Run
+
+### Build
+
+Note that no suffix "*.as" is needed while running the programm but the files should have *.as suffix
+```
+make
+./assembler <file> <file2>
+```
+
+## Clean
+```
+make clean
+```
+
+## Run Tests
+Requirement: Please install **Python 3.5.2** (the supported version).
+```
+make test
+```
+---
 
 ##  High-Level Pipeline
 
@@ -104,24 +125,4 @@ It processes `.as` source files, expands macros, parses and encodes instructions
 │ ├── pass2/...
 │ └── preassembler/...
 └── run_test.py
-```
-
-##  Build & Run
-
-### Build
-
-Note that no prefix "*.as" is needed while running the programm but the files should have *.as 
-```
-make
-./assembler <file> <file2>
-```
-
-## Clean
-```
-make clean
-```
-
-## Run Tests
-```
-make test
 ```

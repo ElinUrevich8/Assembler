@@ -5,7 +5,7 @@
  *
  *  Context:
  *    - Used exclusively by the pre-assembler to expand `mcro ... mcroend`.
- *    - Names must respect the project's identifier rules (checked upstream).
+ *    - Names must respect the project's identifier rules.
  *
  *  Design notes:
  *    - Internally backed by a small chained hash (hash_core).

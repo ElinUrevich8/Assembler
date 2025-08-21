@@ -63,7 +63,7 @@ int is_valid_label_name_strict(const char *s)
 /* Macro names are similar, but allow underscores after the first letter.
  *
  * NOTE: The official project spec examples use macro names like `mc_a`,
- * so we explicitly allow '_' here (even though labels do not permit it).
+ * so it's permitted to explicitly allow '_' here (even though labels do not permit it).
  */
 int is_valid_macro_name(const char *s)
 {

@@ -96,7 +96,7 @@ void errors_addf(Errors *e, int line, const char *fmt, ...) {
 
 /*----------------------------------------------------------------------------
  * errors_merge(dst, src):
- *   Append items from 'src' to 'dst' (deep-copy messages).
+ *   Append items from 'src' to 'dst'.
  *----------------------------------------------------------------------------*/
 void errors_merge(Errors *dst, const Errors *src) {
     size_t i, n;

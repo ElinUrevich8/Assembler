@@ -1,2 +1,2 @@
-/mnt/hgfs/Assembler/tests/cases/pass1/double-external-decleration/test.as:2: cannot define external symbol 'Y' (declared extern at line 1)
+{TEST_AS}:2: cannot define external symbol 'Y' (declared extern at line 1)
 Assembly failed for {TEST_AS}

@@ -1,2 +1,2 @@
- /mnt/hgfs/Assembler/tests/cases/pass1/addressing-mode-not-allowed-for-source/test.as:1: addressing mode not allowed for source
+ {TEST_AS}:1: addressing mode not allowed for source
 Assembly failed for {TEST_AS}

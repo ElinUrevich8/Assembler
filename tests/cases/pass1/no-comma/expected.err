@@ -1,2 +1,2 @@
-/mnt/hgfs/Assembler/tests/cases/pass1/no-comma/test.as:1: expected comma between operands
+{TEST_AS}:1: expected comma between operands
 Assembly failed for {TEST_AS}

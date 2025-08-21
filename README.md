@@ -16,10 +16,6 @@ Note that no suffix "*.as" is needed while running the programm but the files sh
 ```
 make
 ./assembler <file> <file2>
-=======
-```
-make
-./assembler file file2
 ```
 
 ## Clean
@@ -29,7 +25,6 @@ make clean
 
 ## Run Tests
 Requirement: Please install **Python 3.5.2** (the supported version).
-=======
 ```
 make test
 ```
@@ -130,4 +125,5 @@ make test
 │ ├── pass2/...
 │ └── preassembler/...
 └── run_test.py
+
 ```

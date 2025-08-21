@@ -1,2 +1,2 @@
 Error(line 1): illegal macro name 'mov'
-Assembly failed for /mnt/hgfs/Assembler/tests/cases/preassembler/reserved-word/test.as
+Assembly failed for {TEST_AS}

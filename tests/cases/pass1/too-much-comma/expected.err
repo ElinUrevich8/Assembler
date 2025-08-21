@@ -1,2 +1,2 @@
 /mnt/hgfs/Assembler/tests/cases/pass1/too-much-comma/test.as:1: malformed .data list
-Assembly failed for /mnt/hgfs/Assembler/tests/cases/pass1/too-much-comma/test.as
+Assembly failed for {TEST_AS}

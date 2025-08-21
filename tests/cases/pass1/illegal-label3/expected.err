@@ -1,2 +1,2 @@
 /mnt/hgfs/Assembler/tests/cases/pass1/illegal-label3/test.as:1: illegal label name '1LB'
-Assembly failed for /mnt/hgfs/Assembler/tests/cases/pass1/illegal-label3/test.as
+Assembly failed for {TEST_AS}

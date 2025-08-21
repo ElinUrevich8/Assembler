@@ -1,2 +1,2 @@
 /mnt/hgfs/Assembler/tests/cases/pass1/unexpected-text-after-string/test.as:1: unexpected text after .string
-Assembly failed for /mnt/hgfs/Assembler/tests/cases/pass1/unexpected-text-after-string/test.as
+Assembly failed for {TEST_AS}

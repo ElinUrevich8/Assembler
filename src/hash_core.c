@@ -3,22 +3,24 @@
  *
  *  Generic chained hash table declared in hash_core.h.
  *  - Keys are NUL-terminated strings (owned by the table).
- *  - Values are opaque void* and are owned by the caller; supply a value
- *    destructor to hc_free() if needed.
+ *  - Values are opaque void* (owned by the caller unless a destructor is
+ *    supplied to hc_free()).
  *  - Hash function: DJB2 (classic, simple, good enough for coursework).
  *
- *  Public surface:
- *      void  hc_init(HashCore *hc);
- *      void  hc_free(HashCore *hc, void (*free_val)(void*));
- *      int   hc_insert(HashCore *hc, const char *key, void *val);   // 1=ok,0=dup/OOM
- *      void* hc_find(const HashCore *hc, const char *key);          // NULL if missing
+ *  Public API:
+ *      void   hc_init(HashCore *hc);
+ *      void   hc_free(HashCore *hc, void (*free_val)(void*));
+ *      int    hc_insert(HashCore *hc, const char *key, void *val);   // 1=ok, 0=dup/OOM
+ *      void*  hc_find(const HashCore *hc, const char *key);          // NULL if missing
  *============================================================================*/
 
 #include "hash_core.h"
 #include <stdlib.h>
 #include <string.h>
 
-/* strdup replacement: allocate and copy string 's'. */
+/*----------------------------------------------------------------------------
+ * my_strdup(s): minimal strdup replacement (C90-safe).
+ *----------------------------------------------------------------------------*/
 static char *my_strdup(const char *s) {
     size_t len = strlen(s) + 1;
     char *d = (char *)malloc(len);
@@ -45,11 +47,19 @@ static unsigned int hash(const char *str) {
 /*------------------------------------------------------------*/
 /*  Public API                                                */
 /*------------------------------------------------------------*/
+
+/*----------------------------------------------------------------------------
+ * hc_init(hc): zero all buckets.
+ *----------------------------------------------------------------------------*/
 void hc_init(HashCore *hc)
 {
     memset(hc->buckets, 0, sizeof hc->buckets);
 }
 
+/*----------------------------------------------------------------------------
+ * hc_free(hc, free_val):
+ *   Free all entries; if free_val!=NULL, call it on each stored value.
+ *----------------------------------------------------------------------------*/
 void hc_free(HashCore *hc, void (*free_val)(void*))
 {
     size_t i;
@@ -65,7 +75,10 @@ void hc_free(HashCore *hc, void (*free_val)(void*))
     }
 }
 
-/* Insert <key,val>. Returns 0 on duplicate key or allocation failure. */
+/*----------------------------------------------------------------------------
+ * hc_insert(hc, key, val):
+ *   Insert <key,val>. Returns 1 on success, 0 on duplicate key or allocation failure.
+ *----------------------------------------------------------------------------*/
 int hc_insert(HashCore *hc, const char *key, void *val) {
     struct HCNode *n;
     unsigned idx = hash(key);
@@ -78,8 +91,8 @@ int hc_insert(HashCore *hc, const char *key, void *val) {
         cur = cur->next;
     }
 
-    /* Allocate new node */
-    n = malloc(sizeof *n);
+    /* Allocate new node + key copy */
+    n = (struct HCNode*)malloc(sizeof *n);
     if (!n) return 0;
     n->key  = my_strdup(key);
     if (!n->key) { free(n); return 0; }
@@ -89,7 +102,9 @@ int hc_insert(HashCore *hc, const char *key, void *val) {
     return 1;
 }
 
-/* Find the value for 'key' or NULL if absent. */
+/*----------------------------------------------------------------------------
+ * hc_find(hc, key): return stored value pointer or NULL if not found.
+ *----------------------------------------------------------------------------*/
 void *hc_find(const HashCore *hc, const char *key)
 {
     unsigned idx = hash(key);

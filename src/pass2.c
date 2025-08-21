@@ -28,27 +28,55 @@
 
 /*---------------------------- small utilities ---------------------------*/
 
-/* strdup replacement: allocate new buffer and copy string. */
+/*----------------------------------------------------------------------------
+ * dup_c90(s):
+ *   strdup replacement: allocate a new buffer and copy string 's'.
+ *
+ * Params:
+ *   s - NUL-terminated string to duplicate.
+ *
+ * Returns:
+ *   char* / NULL - newly allocated copy on success; NULL on OOM.
+ *
+ * Errors:
+ *   OOM: returns NULL (callers must check).
+ *----------------------------------------------------------------------------*/
 static char *dup_c90(const char *s)
 {
-    size_t n = strlen(s) + 1;
-    char *p = (char*)malloc(n);
+    size_t n = strlen(s) + 1;   /* bytes including NUL */
+    char *p = (char*)malloc(n); /* new buffer          */
     if (p) memcpy(p, s, n);
     return p;
 }
 
-/* Normalized symbol info required by Pass 2. */
+/*----------------------------------------------------------------------------
+ * SymInfo:
+ *   Normalized symbol info required by Pass 2.
+ *----------------------------------------------------------------------------*/
 typedef struct {
     int is_extern;  /* 1 if symbol is declared .extern */
     int defined;    /* 1 if symbol has CODE or DATA address */
     int value;      /* final relocated address (IC for CODE, ICF+offset for DATA) */
 } SymInfo;
 
-/* Look up a symbol and normalize the interesting bits for easy branching.
- * Returns 0 if not found, 1 if found (and fills *out). */
+/*----------------------------------------------------------------------------
+ * sym_info_lookup(p1, name, out):
+ *   Look up 'name' in p1->symbols and normalize the interesting bits.
+ *
+ * Params:
+ *   p1   - pass1 result (provides final symbols and relocation).
+ *   name - symbol name to look up.
+ *   out  - output struct to receive normalized info.
+ *
+ * Returns:
+ *   1/0 - 1 if found and *out filled; 0 if not found.
+ *
+ * Errors:
+ *   None (pure query). 'out' must be non-NULL if return is 1.
+ *----------------------------------------------------------------------------*/
 static int sym_info_lookup(const Pass1Result *p1, const char *name, SymInfo *out)
 {
-    Symbol s;
+    Symbol s;                       /* found symbol snapshot */
     if (!symbols_lookup(p1->symbols, name, &s)) return 0;
     out->is_extern = (s.attrs & SYM_EXTERN) != 0;
     out->defined   = (s.attrs & (SYM_CODE | SYM_DATA)) != 0;
@@ -58,60 +86,160 @@ static int sym_info_lookup(const Pass1Result *p1, const char *name, SymInfo *out
 
 /*-------------------- dynamic arrays (.ext / .ent) ----------------------*/
 
-/* Ensure capacity for 'ext' rows (external use sites). */
+/*----------------------------------------------------------------------------
+ * ext_ensure(out, need):
+ *   Ensure capacity for 'need' ExtUse rows in out->ext (grows geometrically).
+ *
+ * Params:
+ *   out  - pass2 result holder (owns ext[]).
+ *   need - required number of slots.
+ *
+ * Returns:
+ *   void - on OOM, sets out->ok=0 and records an error.
+ *
+ * Errors:
+ *   OOM: adds "out of memory (ext)" to error list and leaves capacity unchanged.
+ *----------------------------------------------------------------------------*/
 static void ext_ensure(Pass2Result *out, size_t need)
 {
     size_t cap = out->ext_cap ? out->ext_cap : 8;
+    ExtUse *nptr;                   /* new allocation pointer */
+
     if (out->ext_cap >= need) return;
     while (cap < need) cap *= 2;
-    out->ext = (ExtUse*)realloc(out->ext, cap * sizeof(*out->ext));
+
+    nptr = (ExtUse*)realloc(out->ext, cap * sizeof(*out->ext));
+    if (!nptr) {
+        out->ok = 0;
+        errors_addf(out->errors, 0, "out of memory while growing .ext table");
+        return;
+    }
+    out->ext = nptr;
     out->ext_cap = cap;
 }
 
-/* Ensure capacity for 'ent' rows (entry output). */
+/*----------------------------------------------------------------------------
+ * ent_ensure(out, need):
+ *   Ensure capacity for 'need' EntryOut rows in out->ent (grows geometrically).
+ *
+ * Params:
+ *   out  - pass2 result holder (owns ent[]).
+ *   need - required number of slots.
+ *
+ * Returns:
+ *   void - on OOM, sets out->ok=0 and records an error.
+ *
+ * Errors:
+ *   OOM: adds "out of memory (ent)" to error list and leaves capacity unchanged.
+ *----------------------------------------------------------------------------*/
 static void ent_ensure(Pass2Result *out, size_t need)
 {
     size_t cap = out->ent_cap ? out->ent_cap : 8;
+    EntryOut *nptr;                 /* new allocation pointer */
+
     if (out->ent_cap >= need) return;
     while (cap < need) cap *= 2;
-    out->ent = (EntryOut*)realloc(out->ent, cap * sizeof(*out->ent));
+
+    nptr = (EntryOut*)realloc(out->ent, cap * sizeof(*out->ent));
+    if (!nptr) {
+        out->ok = 0;
+        errors_addf(out->errors, 0, "out of memory while growing .ent table");
+        return;
+    }
+    out->ent = nptr;
     out->ent_cap = cap;
 }
 
-/* Append one external use (symbol + address of the *operand* word). */
+/*----------------------------------------------------------------------------
+ * ext_push(out, name, addr):
+ *   Append one external use row (symbol name + use-site address).
+ *
+ * Params:
+ *   out  - pass2 result holder.
+ *   name - external symbol name.
+ *   addr - IC address of the *operand* word that referenced the extern.
+ *
+ * Returns:
+ *   void - on OOM sets out->ok=0 and records an error; partial append is skipped.
+ *
+ * Errors:
+ *   OOM on ext_ensure or dup_c90: error is recorded; no row appended.
+ *----------------------------------------------------------------------------*/
 static void ext_push(Pass2Result *out, const char *name, int addr)
 {
+    char *dup;                      /* owned copy of 'name' */
     ext_ensure(out, out->ext_len + 1);
-    out->ext[out->ext_len].name = dup_c90(name);
+    if (!out->ok) return;
+
+    dup = dup_c90(name);
+    if (!dup) {
+        out->ok = 0;
+        errors_addf(out->errors, 0, "out of memory duplicating extern name");
+        return;
+    }
+
+    out->ext[out->ext_len].name = dup;
     out->ext[out->ext_len].addr = addr;
     out->ext_len++;
 }
 
-/* Append one entry output row (name + final relocated address). */
+/*----------------------------------------------------------------------------
+ * ent_push(out, name, addr):
+ *   Append one .entry row (symbol name + final relocated address).
+ *
+ * Params:
+ *   out  - pass2 result holder.
+ *   name - entry symbol name.
+ *   addr - final relocated address.
+ *
+ * Returns:
+ *   void - on OOM sets out->ok=0 and records an error; partial append is skipped.
+ *
+ * Errors:
+ *   OOM on ent_ensure or dup_c90: error is recorded; no row appended.
+ *----------------------------------------------------------------------------*/
 static void ent_push(Pass2Result *out, const char *name, int addr)
 {
+    char *dup;                      /* owned copy of 'name' */
     ent_ensure(out, out->ent_len + 1);
-    out->ent[out->ent_len].name = dup_c90(name);
+    if (!out->ok) return;
+
+    dup = dup_c90(name);
+    if (!dup) {
+        out->ok = 0;
+        errors_addf(out->errors, 0, "out of memory duplicating entry name");
+        return;
+    }
+
+    out->ent[out->ent_len].name = dup;
     out->ent[out->ent_len].addr = addr;
     out->ent_len++;
 }
 
 /*---------------------- input line pre-filtering ------------------------*/
 
-/* Decide whether a given line should be parsed/encoded in Pass 2.
- * - Skips blank/comment lines.
- * - Skips optional leading "label:" (Pass 1 already validated names).
- * - Skips directives (.data/.string/.mat/.entry/.extern).
- * If the line contains an instruction, *pline is advanced to the opcode. */
+/*----------------------------------------------------------------------------
+ * line_should_encode(pline):
+ *   Decide whether the current line contains an instruction to encode.
+ *   Skips blank/comment lines, optional leading "label:", and directives.
+ *
+ * Params:
+ *   pline - in/out pointer to C-string; advanced to opcode on return.
+ *
+ * Returns:
+ *   1/0 - 1 if line should be parsed/encoded; 0 otherwise.
+ *
+ * Errors:
+ *   None. Tolerant to underscores in labels here (Pass 1 did validation).
+ *----------------------------------------------------------------------------*/
 static int line_should_encode(const char **pline)
 {
-    const char *p = *pline;
+    const char *p = *pline; /* scanning cursor */
 
     while (*p && isspace((unsigned char)*p)) p++;
     if (*p == '\0' || *p == ';') return 0;
 
-    /* Optional leading label; Pass 1 forbids underscores, but we only need
-     * to skip "label:" quickly here—accepting '_' is harmless at this point. */
+    /* Optional leading label. */
     if (isalpha((unsigned char)*p) || *p == '_') {
         const char *q = p;
         while (isalnum((unsigned char)*q) || *q == '_') q++;
@@ -128,7 +256,22 @@ static int line_should_encode(const char **pline)
     return 1;
 }
 
-/* If an 8-bit payload is out of range, note it (encoders mask anyway). */
+/*----------------------------------------------------------------------------
+ * check_fit8(errs, lineno, v, what):
+ *   Warn if an 8-bit payload is out of the nominal range. Encoders mask anyway.
+ *
+ * Params:
+ *   errs  - error aggregator (adds a note when out of range).
+ *   lineno- 1-based input line number.
+ *   v     - value to check.
+ *   what  - text describing the value ("immediate", "address").
+ *
+ * Returns:
+ *   void.
+ *
+ * Errors:
+ *   None (adds a warning-like error entry).
+ *----------------------------------------------------------------------------*/
 static void check_fit8(Errors *errs, int lineno, long v, const char *what)
 {
     if (v < -128 || v > 255) {
@@ -137,25 +280,34 @@ static void check_fit8(Errors *errs, int lineno, long v, const char *what)
 }
 
 /*-------------------- operand: symbol extra-word emitter -----------------*/
-/* Emit one extra operand word for a symbol (DIRECT or MATRIX base label).
+
+/*----------------------------------------------------------------------------
+ * emit_symbol_operand(name, io_ic, lineno, p1, out):
+ *   Emit one extra operand word for a symbol (DIRECT or MATRIX base label).
+ *   Increments *io_ic exactly when the word is emitted to keep .ext addresses exact.
  *
- *  - If the symbol is undefined  -> emit E-word + error
- *  - If the symbol is external   -> record use-site (.ext) at current IC,
- *                                  then emit E-word and advance IC
- *  - If the symbol is local      -> emit R-word with the relocated address
- *                                  and advance IC
+ * Params:
+ *   name   - symbol name.
+ *   io_ic  - in/out instruction counter (absolute IC).
+ *   lineno - input line for diagnostics.
+ *   p1     - pass1 result (for symbol table).
+ *   out    - pass2 result (code image + .ext collection + errors).
  *
- *  The instruction counter (*io_ic) is incremented INSIDE this function,
- *  exactly when the extra word is emitted. This keeps .ext addresses exact
- *  and avoids off-by-one bugs.
- */
+ * Returns:
+ *   void - on undefined symbol, emits E-word + error; on extern, records .ext then E-word;
+ *          on local, emits R-word with relocated address.
+ *
+ * Errors:
+ *   Undefined symbol: records error, emits E-word.
+ *   OOM while recording .ext: sets out->ok=0; still emits encoded word to keep stream stable.
+ *----------------------------------------------------------------------------*/
 static void emit_symbol_operand(const char *name,
                                 int *io_ic,
                                 int lineno,
                                 const Pass1Result *p1,
                                 Pass2Result *out)
 {
-    SymInfo s;
+    SymInfo s;   /* normalized symbol info */
 
     if (!sym_info_lookup(p1, name, &s)) {
         errors_addf(out->errors, lineno, "undefined symbol '%s'", name);
@@ -186,17 +338,32 @@ static void emit_symbol_operand(const char *name,
 }
 
 /*------------------------------- encoder --------------------------------*/
-/* Parse+encode exactly one input line; append words to out->code_final.
- * On success returns 1 (even if the line was not an instruction).
- * On parse/encode error returns 0 but continues to scan the file. */
+
+/*----------------------------------------------------------------------------
+ * encode_instruction_into(line, lineno, io_ic, p1, out):
+ *   Parse+encode exactly one input line; append words to out->code_final.
+ *
+ * Params:
+ *   line   - raw input line (mutable for comment stripping by caller).
+ *   lineno - 1-based input line number for diagnostics.
+ *   io_ic  - in/out absolute IC (first word = 100).
+ *   p1     - pass1 result (symbols + dc).
+ *   out    - pass2 result (code image, .ext/.ent arrays, errors, ok flag).
+ *
+ * Returns:
+ *   1/0 - 1 on success (even if line is not an instruction); 0 on parse/encode error.
+ *
+ * Errors:
+ *   Parser failures recorded in out->errors; out->ok set to 0. Keeps scanning.
+ *----------------------------------------------------------------------------*/
 static int encode_instruction_into(const char *line,
                                    int lineno,
                                    int *io_ic,
                                    const Pass1Result *p1,
                                    Pass2Result *out)
 {
-    ParsedInstr pi;
-    const char *p = line;
+    ParsedInstr pi;        /* parsed instruction fields */
+    const char *p = line;  /* scanning cursor (maybe jumps past label) */
 
     if (!line_should_encode(&p)) return 1;
 
@@ -291,11 +458,25 @@ static int encode_instruction_into(const char *line,
 }
 
 /*-------------------------- .ent collection logic -----------------------*/
-/* Callback for symbols_foreach(): push one row to .ent if valid.
- * Rejects impossible combinations (extern+entry, undefined+entry). */
+
+/*----------------------------------------------------------------------------
+ * ent_collect_cb(sym, ud):
+ *   symbols_foreach callback: if 'sym' is a valid .entry, append to out->ent.
+ *   Rejects extern+entry and undefined+entry combinations.
+ *
+ * Params:
+ *   sym - current symbol (read-only).
+ *   ud  - Pass2Result* to receive rows/errors.
+ *
+ * Returns:
+ *   void.
+ *
+ * Errors:
+ *   Inconsistent entries recorded with line numbers from sym->def_line.
+ *----------------------------------------------------------------------------*/
 static void ent_collect_cb(const Symbol *sym, void *ud)
 {
-    Pass2Result *out = (Pass2Result*)ud;
+    Pass2Result *out = (Pass2Result*)ud;  /* output collector */
 
     if (!SYMBOL_IS_ENTRY(sym)) return;
 
@@ -312,7 +493,20 @@ static void ent_collect_cb(const Symbol *sym, void *ud)
     ent_push(out, sym->name, sym->value);
 }
 
-/* Visit all symbols and collect .ent rows. */
+/*----------------------------------------------------------------------------
+ * collect_entries(p1, out):
+ *   Visit all symbols and collect .ent rows into 'out'.
+ *
+ * Params:
+ *   p1  - pass1 result (provides final symbols + relocation).
+ *   out - pass2 result to receive entry rows.
+ *
+ * Returns:
+ *   1 - always succeeds (individual errors added per bad symbol).
+ *
+ * Errors:
+ *   None beyond individual symbol diagnostics.
+ *----------------------------------------------------------------------------*/
 static int collect_entries(const Pass1Result *p1, Pass2Result *out)
 {
     symbols_foreach(p1->symbols, ent_collect_cb, out);
@@ -320,21 +514,38 @@ static int collect_entries(const Pass1Result *p1, Pass2Result *out)
 }
 
 /*--------------------------------- API ----------------------------------*/
-/* Run Pass 2 over <am_path>, producing:
- *  - out->code_final (finished instruction image),
- *  - out->ext[] (use-sites for external symbols),
- *  - out->ent[] (entries),
- *  - out->code_len / out->data_len (for writers). */
+
+/*----------------------------------------------------------------------------
+ * pass2_run(am_path, p1, out):
+ *   Run Pass 2 over <am_path>, producing:
+ *     - out->code_final (finished instruction image),
+ *     - out->ext[] (use-sites for external symbols),
+ *     - out->ent[] (entries),
+ *     - out->code_len / out->data_len (for writers).
+ *
+ * Params:
+ *   am_path - path to the preassembled .am input file.
+ *   p1      - pass1 result (symbols, final DC, shared error aggregator).
+ *   out     - result holder (initialized by this function).
+ *
+ * Returns:
+ *   1/0 - 1 on overall success; 0 if any errors were recorded or I/O failed.
+ *
+ * Errors:
+ *   I/O: fopen/fgets/fclose failures recorded; out->ok=0.
+ *   Encode/parse: recorded by helpers; out->ok=0 but scanning continues.
+ *   Memory: .ext/.ent OOM recorded and out->ok=0.
+ *----------------------------------------------------------------------------*/
 int pass2_run(const char *am_path, const Pass1Result *p1, Pass2Result *out)
 {
-    FILE *fp;
-    char line[MAX_LINE_LEN + 2]; /* room for trailing '\n' + NUL */
-    int lineno;
-    int ic;
+    FILE *fp = NULL;                           /* input .am stream           */
+    char line[MAX_LINE_LEN + 2];               /* room for trailing '\n'+NUL */
+    int lineno = 0;                            /* 1-based line counter       */
+    int ic = IC_INIT;                          /* absolute IC (first word=100) */
 
     memset(out, 0, sizeof(*out));
     out->ok = 1;
-    out->errors = (Errors*)&p1->errors;    /* borrow Pass 1 aggregator */
+    out->errors = (Errors*)&p1->errors;        /* borrow Pass 1 aggregator   */
     codeimg_init(&out->code_final);
 
     fp = fopen(am_path, "r");
@@ -343,9 +554,6 @@ int pass2_run(const char *am_path, const Pass1Result *p1, Pass2Result *out)
         out->ok = 0;
         return 0;
     }
-
-    ic = IC_INIT;  /* IC points to absolute code addresses (first word=100) */
-    lineno = 0;
 
     while (fgets(line, sizeof line, fp)) {
         lineno++;
@@ -357,10 +565,18 @@ int pass2_run(const char *am_path, const Pass1Result *p1, Pass2Result *out)
         }
     }
 
-    fclose(fp);
+    if (ferror(fp)) {
+        errors_addf(out->errors, lineno, "I/O error while reading %s", am_path);
+        out->ok = 0;
+    }
+
+    if (fclose(fp) != 0) {
+        errors_addf(out->errors, 0, "failed to close %s", am_path);
+        out->ok = 0;
+    }
 
     /* Build .ent */
-    collect_entries(p1, out);
+    (void)collect_entries(p1, out);
 
     /* Final sizes for output writers. */
     out->code_len = codeimg_size(&out->code_final);
@@ -369,10 +585,22 @@ int pass2_run(const char *am_path, const Pass1Result *p1, Pass2Result *out)
     return out->ok;
 }
 
-/* Release memory owned by Pass 2 result (except shared errors). */
+/*----------------------------------------------------------------------------
+ * pass2_free(r):
+ *   Release memory owned by Pass 2 result (except shared errors).
+ *
+ * Params:
+ *   r - Pass2Result to free/reset (safe to call with NULL).
+ *
+ * Returns:
+ *   void.
+ *
+ * Errors:
+ *   None. After return, *r fields are zeroed/NULLed where applicable.
+ *----------------------------------------------------------------------------*/
 void pass2_free(Pass2Result *r)
 {
-    size_t i;
+    size_t i;  /* loop index over ext/ent arrays */
     if (!r) return;
 
     for (i = 0; i < r->ext_len; ++i) free(r->ext[i].name);

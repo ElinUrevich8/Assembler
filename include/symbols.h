@@ -26,7 +26,7 @@ typedef enum {
     SYM_ENTRY  = 1u << 3   /* marked by .entry (must be local & defined in the end) */
 } SymAttr;
 
-/* Readability helpers (macros = C90-friendly) */
+/* Readability helpers */
 #define SYMBOL_IS_DEFINED(symp)   (((symp)->attrs & (SYM_CODE | SYM_DATA)) != 0)
 #define SYMBOL_IS_EXTERN(symp)    (((symp)->attrs & SYM_EXTERN) != 0)
 #define SYMBOL_IS_ENTRY(symp)     (((symp)->attrs & SYM_ENTRY)  != 0)

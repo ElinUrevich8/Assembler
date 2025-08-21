@@ -27,7 +27,9 @@
 
 /* --- small local helpers -------------------------------- */
 
-/* Returns non-zero if s starts with prefix (tiny utility). */
+/*----------------------------------------------------------------------------
+ * has_prefix(s, prefix): return non-zero if s starts with prefix.
+ *----------------------------------------------------------------------------*/
 static int has_prefix(const char *s, const char *prefix) {
     while (*prefix) {
         if (*s++ != *prefix++) return 0;
@@ -35,25 +37,33 @@ static int has_prefix(const char *s, const char *prefix) {
     return 1;
 }
 
-/* Trim leading whitespace; return pointer to first non-space. */
+/*----------------------------------------------------------------------------
+ * ltrim(p): skip leading whitespace.
+ *----------------------------------------------------------------------------*/
 static const char* ltrim(const char *p) {
     while (*p && isspace((unsigned char)*p)) p++;
     return p;
 }
 
-/* Return true if line is empty or a pure comment (';'). */
+/*----------------------------------------------------------------------------
+ * empty_or_comment(p): true if line is empty or a pure comment (';').
+ *----------------------------------------------------------------------------*/
 static bool empty_or_comment(const char *p) {
     p = ltrim(p);
     return (*p == '\0' || *p == ';');
 }
 
-/* Read optional "LABEL:" at start of line into out (if present).
-   Rules (spec):
-   - First char must be a letter [A-Za-z]
-   - Following chars: letters or digits only
-   - No underscores are allowed
-   Returns pointer after the label and colon, or original p if none.
-   On invalid label syntax, writes error and returns NULL. */
+/*----------------------------------------------------------------------------
+ * read_optional_label(p, out, cap, errs, lineno):
+ *   Parse an optional "LABEL:" at the start of the line.
+ *   Rules (per spec):
+ *     - First char must be a letter [A-Za-z]
+ *     - Following chars: letters or digits only (NO underscore)
+ *     - Max length: MAX_LABEL_LEN
+ *     - Reserved words are not allowed
+ *   Returns pointer just after the colon if a label is present, the original
+ *   'p' if none, or NULL on invalid label syntax (error recorded).
+ *----------------------------------------------------------------------------*/
 static const char* read_optional_label(const char *p, char *out, size_t cap,
                                        Errors *errs, int lineno) {
     const char *s = ltrim(p);
@@ -100,7 +110,10 @@ static const char* read_optional_label(const char *p, char *out, size_t cap,
     return colon + 1;
 }
 
-/* Push N placeholder words into code image (for size reservation). */
+/*----------------------------------------------------------------------------
+ * push_placeholders(code, n, lineno):
+ *   Append 'n' zero words into 'code' (to be filled during Pass 2).
+ *----------------------------------------------------------------------------*/
 static void push_placeholders(CodeImg *code, int n, int lineno) {
     int i;
     for (i = 0; i < n; ++i) {
@@ -108,7 +121,9 @@ static void push_placeholders(CodeImg *code, int n, int lineno) {
     }
 }
 
-/* Initialize Pass1Result with fresh containers and counters. */
+/*----------------------------------------------------------------------------
+ * init_result(r): initialize a fresh Pass1Result structure.
+ *----------------------------------------------------------------------------*/
 static void init_result(Pass1Result *r) {
     memset(r, 0, sizeof(*r));
     r->symbols = symbols_new();
@@ -122,6 +137,11 @@ static void init_result(Pass1Result *r) {
 
 /* --- line handling ------------------------------------------------------ */
 
+/*----------------------------------------------------------------------------
+ * handle_directive(p, label, r, lineno):
+ *   Process a directive line (.data/.string/.mat/.extern/.entry).
+ *   For data-bearing directives, define 'label' (if present) as DATA.
+ *----------------------------------------------------------------------------*/
 static void handle_directive(const char *p, const char *label,
                              Pass1Result *r, int lineno) {
     /* .data */
@@ -224,7 +244,11 @@ static void handle_directive(const char *p, const char *label,
     r->ok = false;
 }
 
-/* Parse and account for an instruction (no symbol resolution here). */
+/*----------------------------------------------------------------------------
+ * handle_instruction(p, label, r, lineno):
+ *   Parse an instruction line, define label (if present) as CODE, estimate
+ *   its size, and push placeholder words into the code image.
+ *----------------------------------------------------------------------------*/
 static void handle_instruction(const char *p, const char *label,
                                Pass1Result *r, int lineno) {
     EncodedInstrSize sz;
@@ -253,7 +277,10 @@ static void handle_instruction(const char *p, const char *label,
     r->ic += sz.words;
 }
 
-/* Process one source line from the .am file. */
+/*----------------------------------------------------------------------------
+ * handle_line(line, r, lineno):
+ *   Single-line handler: optional label, then directive or instruction.
+ *----------------------------------------------------------------------------*/
 static void handle_line(char *line, Pass1Result *r, int lineno) {
     const char *p;
     char label[128];
@@ -286,7 +313,11 @@ static void handle_line(char *line, Pass1Result *r, int lineno) {
 
 /* --- public API --------------------------------------------------------- */
 
-/* Run the first pass: build symbols, data image, and reserve code size. */
+/*----------------------------------------------------------------------------
+ * pass1_run(am_path, out):
+ *   Run the first pass: build symbols, data image, and reserve code size.
+ *   Returns true if the file was processed (even if r->ok==false due to errors).
+ *----------------------------------------------------------------------------*/
 bool pass1_run(const char *am_path, Pass1Result *out) {
     FILE *fp;
     char buf[4096];
@@ -316,7 +347,9 @@ bool pass1_run(const char *am_path, Pass1Result *out) {
     return true;
 }
 
-/* Release memory owned by Pass1Result. */
+/*----------------------------------------------------------------------------
+ * pass1_free(r): release memory owned by Pass1Result.
+ *----------------------------------------------------------------------------*/
 void pass1_free(Pass1Result *r) {
     if (!r) return;
     symbols_free(r->symbols);

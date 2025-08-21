@@ -13,7 +13,8 @@
 #include <ctype.h>
 #include "identifiers.h"
 
-/* Keep this list in ONE place. Add/remove items here only. */
+/* Keep this list in ONE place. Add/remove items here only.
+   This ensures all reserved words are tracked consistently. */
 static const char *const k_reserved_words[] = {
     /* opcodes */
     "mov","cmp","add","sub","not","clr","lea","inc","dec",
@@ -22,6 +23,10 @@ static const char *const k_reserved_words[] = {
     ".data",".string",".entry",".extern",".mat", 0
 };
 
+/* Note: ~20 reserved words total (fixed).
+ * A simple linear scan is clearer and effectively constant time here.
+ * If the list grows meaningfully, consider sort+qsort/bsearch.
+ */
 int is_reserved_identifier(const char *s)
 {
     int i;
@@ -55,7 +60,11 @@ int is_valid_label_name_strict(const char *s)
     return 1;
 }
 
-/* Macro names are similar, but allow underscores after the first letter. */
+/* Macro names are similar, but allow underscores after the first letter.
+ *
+ * NOTE: The official project spec examples use macro names like `mc_a`,
+ * so we explicitly allow '_' here (even though labels do not permit it).
+ */
 int is_valid_macro_name(const char *s)
 {
     const unsigned char *p = (const unsigned char*)s;

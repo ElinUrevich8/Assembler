@@ -1,7 +1,9 @@
 /*============================================================================
  *  errors.c
  *
- *  Growable list of { line, message } used across stages.
+ *  Growable list of { line, message } used across stages to collect and print
+ *  diagnostics without aborting early (per project spec).
+ *
  *  Usage:
  *    Errors e = errors_new();
  *    errors_addf(&e, lineno, "bad thing: %s", detail);
@@ -23,22 +25,38 @@
     int vsnprintf(char *str, size_t size, const char *format, va_list ap);
 #endif
 
-/* Ensure capacity for at least 'need' error items. */
+/*----------------------------------------------------------------------------
+ * ensure_cap(e, need):
+ *   Make sure the internal array can hold at least 'need' items.
+ *----------------------------------------------------------------------------*/
 static void ensure_cap(Errors *e, size_t need) {
     size_t ncap;
     if (e->cap >= need) return;
     ncap = e->cap ? e->cap * 2 : 8;
     while (ncap < need) ncap *= 2;
     e->items = (ErrorItem *)realloc(e->items, ncap * sizeof(ErrorItem));
+    if (!e->items) {
+        /* If OOM, print and abort: this is a debugging aid; normal runs are small. */
+        fprintf(stderr, "errors: out of memory\n");
+        abort();
+    }
     e->cap = ncap;
 }
 
+/*----------------------------------------------------------------------------
+ * errors_new():
+ *   Return a zero-initialized Errors aggregator.
+ *----------------------------------------------------------------------------*/
 Errors errors_new(void) {
     Errors e;
     memset(&e, 0, sizeof e);
     return e;
 }
 
+/*----------------------------------------------------------------------------
+ * errors_free(e):
+ *   Free all messages and reset to empty.
+ *----------------------------------------------------------------------------*/
 void errors_free(Errors *e) {
     size_t i;
     if (!e) return;
@@ -50,7 +68,10 @@ void errors_free(Errors *e) {
     e->len = e->cap = 0;
 }
 
-/* printf-like append; stores a heap copy of the formatted text */
+/*----------------------------------------------------------------------------
+ * errors_addf(e, line, fmt, ...):
+ *   printf-like append; stores a heap copy of the formatted message.
+ *----------------------------------------------------------------------------*/
 void errors_addf(Errors *e, int line, const char *fmt, ...) {
     va_list ap, ap2;
     int need;
@@ -73,7 +94,10 @@ void errors_addf(Errors *e, int line, const char *fmt, ...) {
     e->len++;
 }
 
-/* Append items from 'src' into 'dst' (src remains valid). */
+/*----------------------------------------------------------------------------
+ * errors_merge(dst, src):
+ *   Append items from 'src' to 'dst' (deep-copy messages).
+ *----------------------------------------------------------------------------*/
 void errors_merge(Errors *dst, const Errors *src) {
     size_t i, n;
     char *copy;
@@ -90,6 +114,10 @@ void errors_merge(Errors *dst, const Errors *src) {
     }
 }
 
+/*----------------------------------------------------------------------------
+ * errors_print(e, filename):
+ *   Print all collected diagnostics to stderr.
+ *----------------------------------------------------------------------------*/
 void errors_print(const Errors *e, const char *filename) {
     size_t i;
     if (!e) return;
@@ -101,6 +129,10 @@ void errors_print(const Errors *e, const char *filename) {
     }
 }
 
+/*----------------------------------------------------------------------------
+ * errors_count(e):
+ *   Return the number of accumulated messages.
+ *----------------------------------------------------------------------------*/
 int errors_count(const Errors *e) {
     return e ? (int)e->len : 0;
 }

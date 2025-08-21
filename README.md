@@ -1,6 +1,6 @@
 # Assembler Project
 
-A two-pass assembler with a macro prepass, written in C90.  
+A two-pass assembler with a macro prepass.  
 It processes `.as` source files, expands macros, parses and encodes instructions, resolves symbols, and produces:
 
 - **`.ob`** — object file in a custom base-4 alphabet (`a=0, b=1, c=2, d=3`)
@@ -16,6 +16,10 @@ Note that no suffix "*.as" is needed while running the programm but the files sh
 ```
 make
 ./assembler <file> <file2>
+=======
+```
+make
+./assembler file file2
 ```
 
 ## Clean
@@ -25,6 +29,7 @@ make clean
 
 ## Run Tests
 Requirement: Please install **Python 3.5.2** (the supported version).
+=======
 ```
 make test
 ```

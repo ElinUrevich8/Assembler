@@ -27,7 +27,8 @@ def compile_assembler():
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE
         )
-        # Compile the assembler
+
+        # Build the assembler
         subprocess.run(
             ["make"],
             check=True,
@@ -36,8 +37,11 @@ def compile_assembler():
             stderr=subprocess.PIPE
         )
     except subprocess.CalledProcessError as e:
-        print("Compilation failed with error:\n" + e.stderr.decode())
-        raise e
+        stdout = e.stdout.decode() if e.stdout else ""
+        stderr = e.stderr.decode() if e.stderr else ""
+        raise RuntimeError(
+            "Compilation failed.\n\n=== STDOUT ===\n{}\n\n=== STDERR ===\n{}\n".format(stdout, stderr)
+        )
 
 
 def execute_assembler(input_file, allow_failure=False):
@@ -59,150 +63,24 @@ def execute_assembler(input_file, allow_failure=False):
         )
         return result.returncode, result.stdout, result.stderr
     except subprocess.CalledProcessError as e:
+        # If failure is allowed, return the captured output; else re-raise
         if allow_failure:
             return e.returncode, e.stdout, e.stderr
-        print("Assembler failed with error:\n" + e.stderr.decode())
-        raise e
-
-
-def cleanup_test():
-    """Remove assembler output files between tests."""
-    # Recursively iterate on TESTS directory and delete specific output files
-    for file_path in TESTS.rglob("test*"):
-        if file_path.is_file():
-            # Check if the file has one of the expected assembler output extensions
-            ext = file_path.suffix.lower()
-            if ext in {".am", ".ob", ".ent", ".ext"}:
-                try:
-                    file_path.unlink() # Delete the file
-                except Exception as e:
-                    # Log the error but don't crash the test suite on cleanup issues
-                    print("Failed to delete {}: {}".format(file_path, e))
-                    # You might want to raise here depending on desired strictness: raise e
-
-
-def _compare_multi_extension_outputs(input_file_path, test_directory, test_name):
-    """
-    Compares produced files (*.ext, *.am, *.ent, *.ob) against their
-    corresponding expected.<ext> files. This is used specifically for
-    tests under `tests/cases/pass2`.
-    """
-    # Define the extensions to compare
-    extensions_to_check = [".am", ".ob", ".ent", ".ext"]
-
-    for ext in extensions_to_check:
-        actual_path = input_file_path.with_suffix(ext)
-        expected_path = test_directory / ("expected" + ext)
-
-        # Check if the actual file was produced
-        if actual_path.exists():
-            # If produced, ensure there's an expected file to compare against
-            if not expected_path.exists():
-                raise FileNotFoundError(
-                    "Test {}: Produced file {} exists, but missing corresponding expected file {}."
-                    .format(test_name, actual_path.name, expected_path.name)
-                )
-            actual_text = actual_path.read_text().strip()
-            expected_text = expected_path.read_text().strip()
-            assert actual_text == expected_text, (
-                "Test {}: Output file '{}' content does not match expected.\n"
-                "--- Got ---\n{}\n\n--- Expected ---\n{}"
-            ).format(test_name, actual_path.name, actual_text, expected_text)
-        # If the actual file was NOT produced, but an expected file exists, it's an error.
-        # This handles cases where a file *should* be produced but isn't.
-        elif expected_path.exists():
-            raise FileNotFoundError(
-                "Test {}: Expected file {} exists, but actual output file {} was not produced."
-                .format(test_name, expected_path.name, actual_path.name)
-            )
-
-
-def run_test(test_name, test_directory, is_expected_failure=False):
-    """
-    Runs a single assembler test case.
-    Handles expected failures by checking stderr, and expected successes by comparing outputs.
-    """
-    input_file_path = test_directory / "test.as"
-    
-    # Ensure a clean slate before running each test
-    cleanup_test()
-
-    try:
-        # Validate input file existence and type
-        if not input_file_path.exists():
-            raise FileNotFoundError("Input file {} does not exist.".format(input_file_path))
-        if not input_file_path.is_file():
-            raise ValueError("Input path {} is not a file.".format(input_file_path))
-        if not input_file_path.suffix == '.as':
-            raise ValueError("Input file {} must have a .as extension.".format(input_file_path))
-
-        if is_expected_failure:
-            # If an error is expected, run the assembler allowing non-zero exit codes.
-            returncode, stdout, stderr = execute_assembler(input_file_path, allow_failure=True)
-            # Assert that the assembler indeed failed
-            assert returncode != 0, "Test {}: Expected assembler to fail, but it succeeded.".format(test_name)
-
-            # Check for expected error file (can be expected.error or expected.err)
-            expected_err_file = test_directory / "expected.error"
-            if not expected_err_file.exists():
-                expected_err_file = test_directory / "expected.err"
-
-            if expected_err_file.exists():
-                expected_err = expected_err_file.read_text().strip()
-                actual_err = stderr.decode().strip()
-                assert actual_err == expected_err, \
-                    "Test {} failed: error output does not match expected.\n\nGot:\n{}\n\nExpected: {}".format(
-                        test_name, actual_err, expected_err)
-            else:
-                # If an error was expected but no expected error file exists, that's an issue.
-                raise FileNotFoundError(
-                    "Test {}: Expected assembler to fail, but no 'expected.error' or 'expected.err' file found."
-                    .format(test_name))
         else:
-            # If success is expected, run the assembler and assert success.
-            returncode, stdout, stderr = execute_assembler(input_file_path, allow_failure=False)
-            assert returncode == 0, "Test {}: Assembler failed unexpectedly with error:\n{}".format(
-                test_name, stderr.decode())
-
-            # Determine if this test is within the 'pass2' subdirectory
-            # Using .as_posix() for consistent path string comparison across OS
-            is_pass2_test = str(test_directory).startswith(str(CASES / "pass2"))
-
-            if is_pass2_test:
-                # For pass2 tests, compare all relevant output files
-                _compare_multi_extension_outputs(input_file_path, test_directory, test_name)
-            else:
-                # For other tests, revert to previous logic: only compare .am file
-                expected_am_file = test_directory / "expected.am"
-                actual_am_file = input_file_path.with_suffix('.am')
-
-                if not actual_am_file.exists():
-                    raise FileNotFoundError(
-                        "Test {}: Actual output file {} does not exist.".format(test_name, actual_am_file))
-                if not expected_am_file.exists():
-                    raise FileNotFoundError(
-                        "Test {}: Expected output file {} does not exist.".format(test_name, expected_am_file))
-
-                actual_content = actual_am_file.read_text().strip()
-                expected_content = expected_am_file.read_text().strip()
-
-                assert actual_content == expected_content, \
-                    "Test {}: Output file '{}' content does not match expected.\n" \
-                    "--- Got ---\n{}\n\n--- Expected ---\n{}".format(
-                        test_name, actual_am_file.name, actual_content, expected_content)
-    finally:
-        # Always clean up generated files after the test, regardless of pass/fail
-        cleanup_test()
+            raise
 
 
 def discover_test_cases():
     """
-    Discovers all test cases by looking for 'test.as' files within the CASES directory.
-    Identifies expected failures based on the presence of 'expected.error' or 'expected.err'.
+    Discover test case directories under CASES/.
+    A test directory is any directory that contains a 'test.as' file.
+    The presence of an 'expected.am' file indicates expected success.
+    The presence of an 'expected.error' or 'expected.err' file indicates expected failure.
     """
-    for test_dir in CASES.rglob("*"): # Recursively search all subdirectories
-        test_as = test_dir / "test.as"
-        if test_as.exists(): # If 'test.as' exists, it's a test case directory
+    for test_dir in sorted(CASES.rglob("*")):
+        if not test_dir.is_dir():
+            continue
+        if (test_dir / "test.as").exists():
             # Detect if test is an expected-failure case
             is_expected_failure = (test_dir / "expected.error").exists() or \
                                   (test_dir / "expected.err").exists()
@@ -212,21 +90,146 @@ def discover_test_cases():
 
 def make_test_function(test_name, test_directory, is_expected_failure):
     """
-    Helper to create a dynamic test method for unittest.TestCase.
+    Create and return a test function for the given test case.
+    The function will:
+    - Compile the assembler before running tests (done once in __main__)
+    - Run the assembler on 'test.as'
+    - If success expected: compare produced .am (or pass2 outputs) against expected.am
+    - If failure expected: compare stderr against expected.error / expected.err
     """
     def test(self):
-        run_test(test_name, test_directory, is_expected_failure)
+        input_file_path = test_directory / "test.as"
+
+        def cleanup_test():
+            """
+            Cleanup any generated files: .am, .ob, .ent, .ext, and any intermediate files.
+            """
+            # Remove files with known extensions
+            generated_extensions = ['.am', '.ob', '.ent', '.ext']
+            for ext in generated_extensions:
+                generated_file = input_file_path.with_suffix(ext)
+                if generated_file.exists():
+                    generated_file.unlink()
+
+        def _compare_multi_extension_outputs(input_file_path, test_directory, test_name):
+            """
+            Compare the content of .ob, .ent, and .ext files for pass2 tests.
+            Only compare files that have a corresponding expected.* file present.
+            """
+            extensions = ['.ob', '.ent', '.ext']
+            for ext in extensions:
+                expected_file = test_directory / ("expected" + ext)
+                actual_file = input_file_path.with_suffix(ext)
+
+                # Only compare if expected file exists
+                if expected_file.exists():
+                    # Fail with explicit error if actual file does not exist
+                    if not actual_file.exists():
+                        raise FileNotFoundError(
+                            "Test {}: Actual output file {} does not exist.".format(test_name, actual_file)
+                        )
+
+                    # Compare file content
+                    actual_content = actual_file.read_text().strip()
+                    expected_content = expected_file.read_text().strip()
+
+                    assert actual_content == expected_content, \
+                        "Test {}: Output file '{}' content does not match expected.\n" \
+                        "--- Got ---\n{}\n\n--- Expected ---\n{}".format(
+                            test_name, actual_file.name, actual_content, expected_content)
+
+        try:
+            # Validate input file existence and type
+            if not input_file_path.exists():
+                raise FileNotFoundError("Input file {} does not exist.".format(input_file_path))
+            if not input_file_path.is_file():
+                raise ValueError("Input path {} is not a file.".format(input_file_path))
+            if not input_file_path.suffix == '.as':
+                raise ValueError("Input file {} must have a .as extension.".format(input_file_path))
+
+            if is_expected_failure:
+                # If an error is expected, run the assembler allowing non-zero exit codes.
+                returncode, stdout, stderr = execute_assembler(input_file_path, allow_failure=True)
+                # Assert that the assembler indeed failed
+                assert returncode != 0, "Test {}: Expected assembler to fail, but it succeeded.".format(test_name)
+
+                # Check for expected error file (can be expected.error or expected.err)
+                expected_err_file = test_directory / "expected.error"
+                if not expected_err_file.exists():
+                    expected_err_file = test_directory / "expected.err"
+
+                if expected_err_file.exists():
+                    expected_err = expected_err_file.read_text().strip()
+                    actual_err = stderr.decode().strip()
+
+                    # --- Portability: substitute tokens and normalize paths ---
+                    test_as = str(input_file_path.resolve())
+                    test_noext = str(input_file_path.resolve().with_suffix(''))
+                    repo_root = str(THIS_DIRECTORY.parent.resolve())
+
+                    def subst_tokens(s: str) -> str:
+                        # Replace known tokens and normalize path separators for cross-platform consistency
+                        return (s.replace("{TEST_AS}", test_as)
+                                  .replace("{TEST_NOEXT}", test_noext)
+                                  .replace("{REPO_ROOT}", repo_root)
+                                  .replace("\\", "/"))
+
+                    expected_norm = subst_tokens(expected_err)
+                    actual_norm = actual_err.replace("\\", "/")
+
+                    assert actual_norm == expected_norm, \
+                        "Test {} failed: error output does not match expected.\n\nGot:\n{}\n\nExpected:\n{}".format(
+                            test_name, actual_norm, expected_norm)
+                else:
+                    # If an error was expected but no expected error file exists, that's an issue.
+                    raise FileNotFoundError(
+                        "Test {}: Expected assembler to fail, but no 'expected.error' or 'expected.err' file found."
+                        .format(test_name))
+            else:
+                # If success is expected, run the assembler and assert success.
+                returncode, stdout, stderr = execute_assembler(input_file_path, allow_failure=False)
+                assert returncode == 0, "Test {}: Assembler failed unexpectedly with error:\n{}".format(
+                    test_name, stderr.decode())
+
+                # Determine if this test is within the 'pass2' subdirectory
+                # Using .as_posix() for consistent path string comparison across OS
+                is_pass2_test = str(test_directory).startswith(str(CASES / "pass2"))
+
+                if is_pass2_test:
+                    # For pass2 tests, compare all relevant output files
+                    _compare_multi_extension_outputs(input_file_path, test_directory, test_name)
+                else:
+                    # For other tests, revert to previous logic: only compare .am file
+                    expected_am_file = test_directory / "expected.am"
+                    actual_am_file = input_file_path.with_suffix('.am')
+
+                    if not actual_am_file.exists():
+                        raise FileNotFoundError(
+                            "Test {}: Actual output file {} does not exist.".format(test_name, actual_am_file))
+                    if not expected_am_file.exists():
+                        raise FileNotFoundError(
+                            "Test {}: Expected output file {} does not exist.".format(test_name, expected_am_file))
+
+                    actual_content = actual_am_file.read_text().strip()
+                    expected_content = expected_am_file.read_text().strip()
+
+                    assert actual_content == expected_content, \
+                        "Test {}: Output file '{}' content does not match expected.\n" \
+                        "--- Got ---\n{}\n\n--- Expected ---\n{}".format(
+                            test_name, actual_am_file.name, actual_content, expected_content)
+        finally:
+            # Always clean up generated files after the test, regardless of pass/fail
+            cleanup_test()
+
     return test
 
 
+# Dynamically build a unittest.TestCase subclass with one method per discovered test
 class DynamicAssemblerTests(unittest.TestCase):
-    """
-    A test suite class to which test methods will be dynamically added.
-    """
     pass
 
 
-# Dynamically create and add test functions to DynamicAssemblerTests
+# Discover test cases and attach them as methods
 for idx, (test_name, test_directory, is_expected_failure) in enumerate(discover_test_cases()):
     test_func = make_test_function(test_name, test_directory, is_expected_failure)
     # Assign a unique and descriptive name to the test function

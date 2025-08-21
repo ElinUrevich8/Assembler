@@ -1,14 +1,16 @@
-/* src/encoding.c  – C90-safe helpers for directives & instruction sizing
+/*============================================================================
+ *  encoding.c  – C90-safe helpers for directives, instruction parsing, and
+ *                instruction size estimation used across Pass 1 and Pass 2.
  *
- * Implements the API in include/encoding.h and include/encoding_parse.h:
- *  - parse_symbol_name()
- *  - parse_and_push_data_operands()
- *  - parse_and_push_string()
- *  - parse_and_push_mat()
- *  - encoding_estimate_size()
- *  - encoding_lookup_opcode()
- *  - encoding_parse_instruction()   (shared with Pass 2)
- */
+ *  Public API (see encoding.h / encoding_parse.h):
+ *    - bool   parse_symbol_name(...)
+ *    - int    parse_and_push_data_operands(...)
+ *    - int    parse_and_push_string(...)
+ *    - int    parse_and_push_mat(...)
+ *    - bool   encoding_estimate_size(...)
+ *    - bool   encoding_lookup_opcode(...)
+ *    - bool   encoding_parse_instruction(...): full parse for Pass 2
+ *============================================================================*/
 
 #include <ctype.h>
 #include <stdlib.h>
@@ -19,13 +21,19 @@
 
 /* ------------------------- local helpers ------------------------------ */
 
-/* Skip ASCII whitespace. */
+/*----------------------------------------------------------------------------
+ * skip_ws(p): return 'p' advanced past ASCII whitespace.
+ *----------------------------------------------------------------------------*/
 static const char* skip_ws(const char *p) {
     while (p && *p && isspace((unsigned char)*p)) p++;
     return p;
 }
 
-/* Read identifier [A-Za-z_][A-Za-z0-9_]*; returns start, sets *out_end. */
+/*----------------------------------------------------------------------------
+ * read_word(p, out_end):
+ *   Read identifier-like token: [A-Za-z_][A-Za-z0-9_]*.
+ *   Returns pointer to start; stores past-the-end in *out_end; or NULL if not.
+ *----------------------------------------------------------------------------*/
 static const char* read_word(const char *p, const char **out_end) {
     const char *s = p;
     if (!isalpha((unsigned char)*s) && *s != '_') return NULL;
@@ -35,7 +43,10 @@ static const char* read_word(const char *p, const char **out_end) {
     return p;
 }
 
-/* Parse optional sign + decimal integer; returns 1 on success, 0 on failure. */
+/*----------------------------------------------------------------------------
+ * parse_int10(p, end, out):
+ *   Parse optional sign + decimal integer. Returns 1 on success, else 0.
+ *----------------------------------------------------------------------------*/
 int parse_int10(const char *p, const char **end, long *out) {
     char *e;
     long v;
@@ -47,7 +58,10 @@ int parse_int10(const char *p, const char **end, long *out) {
     return 1;
 }
 
-/* Try parse register r0..r7; if yes set *reg (0..7) and *end. */
+/*----------------------------------------------------------------------------
+ * parse_register(p, end, reg):
+ *   Try reading register r0..r7. On success set *reg in [0..7], *end, return 1.
+ *----------------------------------------------------------------------------*/
 int parse_register(const char *p, const char **end, int *reg) {
     if (p[0] == 'r' && isdigit((unsigned char)p[1]) && !isalnum((unsigned char)p[2])) {
         int r = p[1] - '0';
@@ -60,22 +74,30 @@ int parse_register(const char *p, const char **end, int *reg) {
     return 0;
 }
 
-/* Parse a single operand and classify addressing mode.
-   For ADR_DIRECT, copy symbol into sym_out if provided. */
+/*----------------------------------------------------------------------------
+ * parse_operand(p, end, sym_out, sym_cap):
+ *   Classify one operand and advance *end:
+ *     #imm         -> ADR_IMMEDIATE
+ *     rX           -> ADR_REGISTER
+ *     LABEL        -> ADR_DIRECT  (possibly becomes ADR_MATRIX after suffix)
+ *   If ADR_DIRECT and sym_out!=NULL, the label is copied into sym_out.
+ *----------------------------------------------------------------------------*/
 AddrMode parse_operand(const char *p, const char **end,
                        char *sym_out, size_t sym_cap) {
     const char *e;
     const char *w;
-    long v;
-    int r;
 
     p = skip_ws(p);
     if (*p == '#') { /* immediate */
+        long v;
         if (!parse_int10(p + 1, &e, &v)) return ADR_INVALID;
         *end = e;
         return ADR_IMMEDIATE;
     }
-    if (parse_register(p, &e, &r)) { *end = e; return ADR_REGISTER; }
+    {
+        int r;
+        if (parse_register(p, &e, &r)) { *end = e; return ADR_REGISTER; }
+    }
 
     w = read_word(p, &e);
     if (w) {
@@ -91,13 +113,19 @@ AddrMode parse_operand(const char *p, const char **end,
     return ADR_INVALID;
 }
 
-/* After parsing: only spaces and/or a comment are allowed. */
+/*----------------------------------------------------------------------------
+ * rest_is_comment_or_ws(p):
+ *   After parsing an instruction/operand, allow only spaces or a ';' comment.
+ *----------------------------------------------------------------------------*/
 int rest_is_comment_or_ws(const char *p) {
     p = skip_ws(p);
     return (*p == '\0' || *p == ';');
 }
 
-/* Read mnemonic into buf; returns pointer just after mnemonic or NULL. */
+/*----------------------------------------------------------------------------
+ * read_mnemonic(p, buf, cap):
+ *   Read mnemonic into buf, return pointer just after it; or NULL if not found.
+ *----------------------------------------------------------------------------*/
 const char* read_mnemonic(const char *p, char *buf, size_t cap) {
     const char *end;
     const char *w;
@@ -114,7 +142,10 @@ const char* read_mnemonic(const char *p, char *buf, size_t cap) {
     return end;
 }
 
-/* Consume a comma between operands (after skipping spaces). */
+/*----------------------------------------------------------------------------
+ * parse_comma(&p):
+ *   Consume a single comma between operands (skips spaces). Returns 1 on success.
+ *----------------------------------------------------------------------------*/
 static int parse_comma(const char **p) {
     const char *q = skip_ws(*p);
     if (*q != ',') return 0;
@@ -122,7 +153,10 @@ static int parse_comma(const char **p) {
     return 1;
 }
 
-/* Parse a suffix of the form: [rX][rY]; returns 1 on success and sets row/col/end. */
+/*----------------------------------------------------------------------------
+ * parse_matrix_suffix(p, end, row, col):
+ *   Recognize and extract a "[rX][rY]" suffix. Returns 1 on success.
+ *----------------------------------------------------------------------------*/
 static int parse_matrix_suffix(const char *p, const char **end, int *row, int *col) {
     const char *q;
 
@@ -154,7 +188,7 @@ typedef struct {
     const char *name;
     int         opcode;   /* 0..15 per spec */
     int         argc;     /* number of operands (0,1,2) */
-    unsigned    src_ok;   /* allowed addressing modes for src (2-operand ops) */
+    unsigned    src_ok;   /* allowed addressing modes for src (for 2-operand ops) */
     unsigned    dst_ok;   /* allowed addressing modes for dst (or single-operand) */
 } OpSpec;
 
@@ -163,7 +197,7 @@ typedef struct {
 #define AM_NOIMM    (ADR_DIRECT | ADR_REGISTER | ADR_MATRIX)
 #define AM_ONLYDIR  (ADR_DIRECT | ADR_MATRIX)
 
-/* 16 ops aligned with your spec */
+/* 16 ops aligned with the project spec. */
 static const OpSpec OPS[] = {
     /* name  op argc  src-ok     dst-ok */
     {"mov",   0, 2, AM_ALL,     AM_NOIMM},
@@ -175,17 +209,20 @@ static const OpSpec OPS[] = {
     {"not",   6, 1, 0,          AM_NOIMM},
     {"inc",   7, 1, 0,          AM_NOIMM},
     {"dec",   8, 1, 0,          AM_NOIMM},
-    {"jmp",  9,  1, 0, AM_ONLYDIR},
-    {"bne", 10,  1, 0, AM_ONLYDIR},
-    {"red", 11,  1, 0, AM_NOIMM},   /* read char to register */
-    {"prn", 12,  1, 0, AM_ALL},     /* print operand; allows #imm */
-    {"jsr", 13,  1, 0, AM_ONLYDIR}, /* jump to subroutine (direct/matrix only) */
-    {"rts", 14,  0, 0, 0},
-    {"stop",15,  0, 0, 0}
+    {"jmp",   9, 1, 0,          AM_ONLYDIR},
+    {"bne",  10, 1, 0,          AM_ONLYDIR},
+    {"red",  11, 1, 0,          AM_NOIMM},   /* read char to register */
+    {"prn",  12, 1, 0,          AM_ALL},     /* print operand; allows #imm */
+    {"jsr",  13, 1, 0,          AM_ONLYDIR}, /* jump to subroutine */
+    {"rts",  14, 0, 0,          0},
+    {"stop", 15, 0, 0,          0}
 };
 static const size_t OPS_LEN = sizeof(OPS) / sizeof(OPS[0]);
 
-/* Linear lookup is fine for 16 ops. */
+/*----------------------------------------------------------------------------
+ * find_op(mnemonic):
+ *   Return pointer to OpSpec for mnemonic, or NULL if unknown.
+ *----------------------------------------------------------------------------*/
 static const OpSpec* find_op(const char *mnemonic) {
     size_t i;
     for (i = 0; i < OPS_LEN; ++i) {
@@ -196,7 +233,11 @@ static const OpSpec* find_op(const char *mnemonic) {
 
 /* --------------------------- public API ------------------------------- */
 
-/* Parse a legal symbol name (skips leading spaces). */
+/*----------------------------------------------------------------------------
+ * parse_symbol_name(s, out, outsz):
+ *   Parse a legal symbol (letters/digits/underscore) starting at 's'
+ *   (skipping leading spaces). Copies into 'out'. Returns true on success.
+ *----------------------------------------------------------------------------*/
 bool parse_symbol_name(const char *s, char *out, size_t outsz) {
     const char *end;
     const char *w;
@@ -213,8 +254,11 @@ bool parse_symbol_name(const char *s, char *out, size_t outsz) {
     return true;
 }
 
-/* Parse `.data` list and push each integer into the data image.
-   Returns number of words pushed, or -1 on error. */
+/*----------------------------------------------------------------------------
+ * parse_and_push_data_operands(s, data, errs, lineno):
+ *   Parse .data comma-separated integers and push each into the data image.
+ *   Returns number of words pushed, or -1 on error (and records an error).
+ *----------------------------------------------------------------------------*/
 int parse_and_push_data_operands(const char *s, CodeImg *data,
                                  Errors *errs, int lineno) {
     int count = 0;
@@ -273,8 +317,11 @@ int parse_and_push_data_operands(const char *s, CodeImg *data,
     return count;
 }
 
-/* Parse `.string "..."`, push chars as words + terminating 0.
-   Supports \" and \\ escapes minimally. */
+/*----------------------------------------------------------------------------
+ * parse_and_push_string(s, data, errs, lineno):
+ *   Parse .string "..." and push bytes as words plus a trailing 0.
+ *   Supports simple \" and \\ escapes. Returns words pushed or -1 on error.
+ *----------------------------------------------------------------------------*/
 int parse_and_push_string(const char *s, CodeImg *data,
                           Errors *errs, int lineno) {
     const char *p;
@@ -315,7 +362,12 @@ int parse_and_push_string(const char *s, CodeImg *data,
     return pushed;
 }
 
-/* Parse .mat [rows][cols] with optional initializer list, push cell words. */
+/*----------------------------------------------------------------------------
+ * parse_and_push_mat(s, data, errs, lineno):
+ *   Parse .mat [rows][cols] then optional comma-separated initializers.
+ *   Push 'rows*cols' words, default-initializing remaining cells to 0.
+ *   Returns total words pushed, or -1 on error.
+ *----------------------------------------------------------------------------*/
 int parse_and_push_mat(const char *s, CodeImg *data, Errors *errs, int lineno) {
     const char *p = s;
     long rows = 0, cols = 0;
@@ -392,7 +444,10 @@ int parse_and_push_mat(const char *s, CodeImg *data, Errors *errs, int lineno) {
     return total;
 }
 
-/* Extra words per addressing mode (register/immediate/direct=1, matrix=2). */
+/*----------------------------------------------------------------------------
+ * words_for_mode(m):
+ *   Extra words required by a given addressing mode.
+ *----------------------------------------------------------------------------*/
 static int words_for_mode(AddrMode m) {
     if (m == ADR_REGISTER)  return 1;
     if (m == ADR_IMMEDIATE) return 1;
@@ -401,10 +456,12 @@ static int words_for_mode(AddrMode m) {
     return 0;
 }
 
-/* Estimate the number of words an instruction will occupy (pass 1).
- * Uses the same tokenization as the runtime parser and "upgrades"
- * ADR_DIRECT to ADR_MATRIX if a label is followed by [rX][rY].
- */
+/*----------------------------------------------------------------------------
+ * encoding_estimate_size(instr, sz, errs, lineno):
+ *   Estimate how many words an instruction will occupy (Pass 1).
+ *   Also validates addressing modes and presence of operands.
+ *   For label[rX][rY], a DIRECT operand is upgraded to MATRIX.
+ *----------------------------------------------------------------------------*/
 bool encoding_estimate_size(const char *instr, EncodedInstrSize *sz,
                             Errors *errs, int lineno) {
     char mnem[32];
@@ -415,7 +472,7 @@ bool encoding_estimate_size(const char *instr, EncodedInstrSize *sz,
     const char *e, *e2, *peek;
     int add;
 
-    sz->words = 0;
+    sz->words    = 0;
     sz->operands = 0;
 
     p = read_mnemonic(instr, mnem, sizeof mnem);
@@ -425,7 +482,7 @@ bool encoding_estimate_size(const char *instr, EncodedInstrSize *sz,
 
     src = ADR_INVALID;
     dst = ADR_INVALID;
-    e = p;
+    e   = p;
 
     if (spec->argc == 2) {
         peek = e; while (*peek && isspace((unsigned char)*peek)) peek++;
@@ -443,7 +500,7 @@ bool encoding_estimate_size(const char *instr, EncodedInstrSize *sz,
             int row, col;
             if (parse_matrix_suffix(e, &e2, &row, &col)) {
                 src = ADR_MATRIX;
-                e = e2;
+                e   = e2;
             }
         }
 
@@ -460,7 +517,7 @@ bool encoding_estimate_size(const char *instr, EncodedInstrSize *sz,
             int row2, col2;
             if (parse_matrix_suffix(e, &e2, &row2, &col2)) {
                 dst = ADR_MATRIX;
-                e = e2;
+                e   = e2;
             }
         }
 
@@ -473,7 +530,7 @@ bool encoding_estimate_size(const char *instr, EncodedInstrSize *sz,
         if (src == ADR_REGISTER && dst == ADR_REGISTER) {
             sz->words = 1 + 1; /* first + packed reg-pair */
         } else {
-            add = words_for_mode(src) + words_for_mode(dst);
+            add      = words_for_mode(src) + words_for_mode(dst);
             sz->words = 1 + add;
         }
         return true;
@@ -487,7 +544,7 @@ bool encoding_estimate_size(const char *instr, EncodedInstrSize *sz,
             int row3, col3;
             if (parse_matrix_suffix(e, &e2, &row3, &col3)) {
                 dst = ADR_MATRIX;
-                e = e2;
+                e   = e2;
             }
         }
 
@@ -505,11 +562,14 @@ bool encoding_estimate_size(const char *instr, EncodedInstrSize *sz,
         return false;
     }
     sz->operands = 0;
-    sz->words = 1;
+    sz->words    = 1;
     return true;
 }
 
-/* Lookup numeric opcode and argc by mnemonic. */
+/*----------------------------------------------------------------------------
+ * encoding_lookup_opcode(mnemonic, out_opcode, out_argc):
+ *   Resolve mnemonic to opcode and expected operand count.
+ *----------------------------------------------------------------------------*/
 bool encoding_lookup_opcode(const char *mnemonic, int *out_opcode, int *out_argc) {
     const OpSpec *s = find_op(mnemonic);
     if (!s) return false;
@@ -520,12 +580,18 @@ bool encoding_lookup_opcode(const char *mnemonic, int *out_opcode, int *out_argc
 
 /* ----------------- public parser for Pass 2 (full line) ---------------- */
 
+/*----------------------------------------------------------------------------
+ * encoding_parse_instruction(line, out, errs, lineno):
+ *   Parse a full instruction line into a structured 'ParsedInstr', including
+ *   immediate values, registers, label names, and matrix indices where used.
+ *   Returns true on success; on failure records an error and returns false.
+ *----------------------------------------------------------------------------*/
 bool encoding_parse_instruction(const char *line, ParsedInstr *out,
                                 Errors *errs, int lineno)
 {
     char mnem[32];
     const char *p, *e, *peek, *e2;
-    const char *op_start;      /* NEW: remember where the operand starts */
+    const char *op_start;      /* remember where the operand starts */
     const OpSpec *spec;
     AddrMode src, dst;
     long v;
@@ -604,7 +670,7 @@ bool encoding_parse_instruction(const char *line, ParsedInstr *out,
         if (!(spec->dst_ok & dst)) { errors_addf(errs, lineno, "addressing mode not allowed for destination"); return false; }
         if (!rest_is_comment_or_ws(p)) { errors_addf(errs, lineno, "unexpected text after instruction"); return false; }
 
-        out->argc = 2;
+        out->argc     = 2;
         out->src_mode = src;
         out->dst_mode = dst;
         return true;
@@ -636,7 +702,7 @@ bool encoding_parse_instruction(const char *line, ParsedInstr *out,
         if (!(spec->dst_ok & dst)) { errors_addf(errs, lineno, "addressing mode not allowed"); return false; }
         if (!rest_is_comment_or_ws(e)) { errors_addf(errs, lineno, "unexpected text after instruction"); return false; }
 
-        out->argc = 1;
+        out->argc     = 1;
         out->dst_mode = dst;
         return true;
     }
@@ -650,7 +716,11 @@ bool encoding_parse_instruction(const char *line, ParsedInstr *out,
     return true;
 }
 
-/* Remove a ';' comment unless it's inside a quoted string. In-place. */
+/*----------------------------------------------------------------------------
+ * strip_comment_inplace(s):
+ *   Remove a ';' comment unless it occurs inside a quoted string.
+ *   Modifies 's' in place; safe to call on NULL (no-op).
+ *----------------------------------------------------------------------------*/
 void strip_comment_inplace(char *s) {
     int in_str = 0;   /* inside "..." */
     int esc    = 0;   /* previous char was backslash */

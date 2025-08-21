@@ -1,2 +1,2 @@
 /mnt/hgfs/Assembler/tests/cases/pass1/define-label-as-instruction/test.as:1: illegal label name 'add' (reserved)
-Assembly failed for /mnt/hgfs/Assembler/tests/cases/pass1/define-label-as-instruction/test.as
+Assembly failed for {TEST_AS}

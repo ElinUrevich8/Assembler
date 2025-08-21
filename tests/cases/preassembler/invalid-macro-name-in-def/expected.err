@@ -1,2 +1,2 @@
 Error(line 1): illegal macro name '123INVALID'
-Assembly failed for /mnt/hgfs/Assembler/tests/cases/preassembler/invalid-macro-name-in-def/test.as
+Assembly failed for {TEST_AS}

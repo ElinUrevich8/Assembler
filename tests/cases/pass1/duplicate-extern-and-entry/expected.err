@@ -1,2 +1,2 @@
 /mnt/hgfs/Assembler/tests/cases/pass1/duplicate-extern-and-entry/test.as:2: symbol 'EXT' marked .entry but also declared .extern
-Assembly failed for /mnt/hgfs/Assembler/tests/cases/pass1/duplicate-extern-and-entry/test.as
+Assembly failed for {TEST_AS}

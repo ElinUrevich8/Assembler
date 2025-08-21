@@ -1,2 +1,2 @@
  /mnt/hgfs/Assembler/tests/cases/pass1/zero-operand-inst-with-operand/test.as:1: unexpected text after zero-operand instruction
-Assembly failed for /mnt/hgfs/Assembler/tests/cases/pass1/zero-operand-inst-with-operand/test.as
+Assembly failed for {TEST_AS}

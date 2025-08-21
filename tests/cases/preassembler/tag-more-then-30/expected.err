@@ -1,2 +1,2 @@
 Error(line 1): macro name too long
-Assembly failed for /mnt/hgfs/Assembler/tests/cases/preassembler/tag-more-then-30/test.as
+Assembly failed for {TEST_AS}

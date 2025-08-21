@@ -11,6 +11,12 @@ It processes `.as` source files, expands macros, parses and encodes instructions
 ##  Build & Run
 
 ### Build
+
+Note that no suffix "*.as" is needed while running the programm but the files should have *.as suffix
+```
+make
+./assembler <file> <file2>
+=======
 ```
 make
 ./assembler file file2
@@ -22,6 +28,8 @@ make clean
 ```
 
 ## Run Tests
+Requirement: Please install **Python 3.5.2** (the supported version).
+=======
 ```
 make test
 ```
@@ -58,21 +66,23 @@ make test
 
 ---
 
-##  Module Responsibilities
+##  Module main Responsibilities
 
+- **assembler.c / main.c** — Orchestrate stages; CLI handling.  
 - **preassembler.c / macro.c** — Expand macros; write `.am`.  
-- **encoding.c** — Parse directives and instructions, estimate size, strip comments.  
-- **isa.c** — Pack/unpack 10-bit words; encode first word, registers, ARE bits.  
-- **pass1.c** — Build symbol table; track IC/DC; push data; relocate data symbols.  
-- **symbols.c** — Define/lookup/mark entry/extern; iterate symbols.  
-- **codeimg.c** — Manage code/data images; push/get/relocate words.  
-- **pass2.c** — Emit final words; resolve symbols; log externs; collect entries.  
-- **output.c** — Base-4 printing (`a=0,b=1,c=2,d=3`), write `.ob`, `.ent`, `.ext`.  
 - **identifiers.c** — Reserved words and identifier validation.  
+- **pass1.c** — Build symbol table; track IC/DC; push data; relocate data symbols.  
+- **encoding.c** — Parse directives and instructions, estimate size, strip comments.  
+- **nameset.c** — String set for tracking used names (e.g., macros); prevent name collisions.  
+- **hash_core.c** — Generic chained hash table with string keys and `void*` values.  
+- **symbols.c** — Define/lookup/mark entry/extern; iterate symbols.  
+- **pass2.c** — Emit final words; resolve symbols; log externs; collect entries.  
+- **codeimg.c** — Manage code/data images; push/get/relocate words.  
+- **isa.c** — Pack/unpack 10-bit words; encode first word, registers, ARE bits.  
+- **output.c** — Base-4 printing (`a=0,b=1,c=2,d=3`), write `.ob`, `.ent`, `.ext`.  
 - **errors.c** — Collect and print assembler errors.  
-- **assembler.c / main.c** — Orchestrate stages; CLI handling.
-
 ---
+
 
 ##  Project Structure
 ```

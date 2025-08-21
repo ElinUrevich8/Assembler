@@ -15,7 +15,7 @@
 #ifndef PASS2_H
 #define PASS2_H
 
-#include "defaults.h"   /* size limits, C90 bool fallback */
+#include "defaults.h"   /* size limits */
 #include "codeimg.h"    /* CodeImg container */
 #include "symbols.h"    /* symbol table built by pass 1 */
 #include "errors.h"     /* error aggregation/printing */

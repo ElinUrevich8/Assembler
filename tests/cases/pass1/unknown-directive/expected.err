@@ -1,2 +1,2 @@
  /mnt/hgfs/Assembler/tests/cases/pass1/unknown-directive/test.as:1: unknown directive
-Assembly failed for /mnt/hgfs/Assembler/tests/cases/pass1/unknown-directive/test.as
+Assembly failed for {TEST_AS}

@@ -21,13 +21,19 @@
 
 /* -------------------- Base-4 helpers (a/b/c/d) -------------------- */
 
+/*----------------------------------------------------------------------------
+ * base4_digit(d): map 0..3 into a/b/c/d (as configured in defaults.h).
+ *----------------------------------------------------------------------------*/
 static char base4_digit(unsigned d)
 {
     static const char map[4] = { BASE4_CHAR_0, BASE4_CHAR_1, BASE4_CHAR_2, BASE4_CHAR_3 };
     return map[d & 3u];
 }
 
-/* Write trimmed base-4 value into out (NUL-terminated). */
+/*----------------------------------------------------------------------------
+ * b4_write_trim(v, out, cap):
+ *   Write 'v' in base-4 without leading zeros (NUL-terminated).
+ *----------------------------------------------------------------------------*/
 static void b4_write_trim(unsigned int v, char *out, size_t cap)
 {
     char tmp[64];
@@ -45,7 +51,10 @@ static void b4_write_trim(unsigned int v, char *out, size_t cap)
     out[n] = '\0';
 }
 
-/* Write padded base-4 value (fixed width) into out. */
+/*----------------------------------------------------------------------------
+ * b4_write_pad(v, width, pad_char, out, cap):
+ *   Write 'v' in base-4 padded to 'width' characters (NUL-terminated).
+ *----------------------------------------------------------------------------*/
 static void b4_write_pad(unsigned int v, unsigned width, char pad_char,
                          char *out, size_t cap)
 {
@@ -75,13 +84,19 @@ static void b4_write_pad(unsigned int v, unsigned width, char pad_char,
     out[need] = '\0';
 }
 
-/* 10-bit word -> fixed 5 base-4 chars (a=0). */
+/*----------------------------------------------------------------------------
+ * b4_write_word10(w10, out, cap):
+ *   Convert a 10-bit word to fixed 5 base-4 chars (left-padded with 'a'=0).
+ *----------------------------------------------------------------------------*/
 static void b4_write_word10(unsigned int w10, char *out, size_t cap)
 {
     b4_write_pad(w10 & 0x3FFu, BASE4_WORD_STRLEN, base4_digit(0u), out, cap);
 }
 
-/* Address: optional fixed width (OB_ADDR_PAD_WIDTH). */
+/*----------------------------------------------------------------------------
+ * b4_write_addr(addr, out, cap):
+ *   Convert an address using trimmed or padded width per build config.
+ *----------------------------------------------------------------------------*/
 static void b4_write_addr(unsigned int addr, char *out, size_t cap)
 {
 #if OB_ADDR_PAD_WIDTH > 0
@@ -93,6 +108,11 @@ static void b4_write_addr(unsigned int addr, char *out, size_t cap)
 
 /* --------------------------- Writers --------------------------- */
 
+/*----------------------------------------------------------------------------
+ * output_write_ob(fp, p1, p2):
+ *   Write the .ob file: header "<code_len> <data_len>", then each address/word.
+ *   Returns 1 on success (best-effort printing), 0 on obvious misuse.
+ *----------------------------------------------------------------------------*/
 int output_write_ob(FILE *fp, const Pass1Result *p1, const Pass2Result *p2)
 {
     unsigned int addr;
@@ -136,6 +156,9 @@ int output_write_ob(FILE *fp, const Pass1Result *p1, const Pass2Result *p2)
     return 1;
 }
 
+/*----------------------------------------------------------------------------
+ * output_write_ent(fp, p2): write each entry symbol name + address.
+ *----------------------------------------------------------------------------*/
 int output_write_ent(FILE *fp, const Pass2Result *p2)
 {
     size_t i;
@@ -149,6 +172,9 @@ int output_write_ent(FILE *fp, const Pass2Result *p2)
     return 1;
 }
 
+/*----------------------------------------------------------------------------
+ * output_write_ext(fp, p2): write each external use-site name + address.
+ *----------------------------------------------------------------------------*/
 int output_write_ext(FILE *fp, const Pass2Result *p2)
 {
     size_t i;

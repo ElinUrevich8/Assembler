@@ -1,2 +1,2 @@
 /mnt/hgfs/Assembler/tests/cases/pass1/too-much-operands/test.as:1: unexpected text after instruction
-Assembly failed for /mnt/hgfs/Assembler/tests/cases/pass1/too-much-operands/test.as
+Assembly failed for {TEST_AS}

@@ -27,7 +27,20 @@
 /* Global identifier set (macros + labels share one namespace). */
 NameSet *g_used_names = NULL;
 
-/* Build "<base><ext>" into 'out' (C90-safe, truncating if needed). */
+/*-------------------------------------------------------------------------
+ * make_path:
+ *   Safely concatenate a base filename with an extension into the output buffer.
+ *
+ *   Example:
+ *      make_path(buf, sizeof buf, "source", ".as")  => "source.as"
+ *
+ *   - 'out' is the destination buffer.
+ *   - 'cap' is the size of that buffer (prevents overflow).
+ *   - 'base' is the filename without extension.
+ *   - 'ext'  is the extension (e.g., ".as", ".am", ".ob").
+ *
+ *   Result is always null-terminated as long as 'cap' > strlen(ext).
+ *-------------------------------------------------------------------------*/
 static void make_path(char *out, size_t cap, const char *base, const char *ext) {
     size_t bl = strlen(base), el = strlen(ext);
     if (bl + el + 1 > cap) bl = (cap > el + 1) ? (cap - el - 1) : 0;
@@ -35,15 +48,12 @@ static void make_path(char *out, size_t cap, const char *base, const char *ext) 
     memcpy(out + bl, ext, el + 1);
 }
 
+/* Main assembly pipeline, run all stages */
 bool assemble_file(const char *base_path)
 {
     char as_path[PATH_MAX], am_path[PATH_MAX];
     char path_ob[PATH_MAX], path_ent[PATH_MAX], path_ext[PATH_MAX];
     FILE *fp;
-
-#ifndef EXT_OB
-#define EXT_OB ".ob"
-#endif
 
     DEBUG("Assembling: %s", base_path);
 
@@ -58,14 +68,14 @@ bool assemble_file(const char *base_path)
     if (!g_used_names) { perror("NameSet OOM"); return false; }
     ns_init(g_used_names);
 
-    /* Stage 0: Macro expansion * .am */
+    /* Stage 0: Macro expansion *.as -> *.am */
     if (!preassemble(as_path, am_path)) {
         ns_free(g_used_names, NULL); free(g_used_names);
         return false;
     }
 
-    /* Stage 1: symbols + sizing; Stage 2: final emission */
-    {
+        /* Stage 1: symbols + sizing */    
+        {
         Pass1Result p1; Pass2Result p2; int ok;
 
         memset(&p1, 0, sizeof p1);
@@ -77,6 +87,7 @@ bool assemble_file(const char *base_path)
         }
         DEBUG("Pass-1 OK: IC=%d, DC=%d", p1.ic, p1.dc);
 
+        /* Stage 2: final emission */
         memset(&p2, 0, sizeof p2);
         ok = pass2_run(am_path, &p1, &p2);
         if (!ok || !p2.ok || errors_count(p2.errors) > 0) {
@@ -89,6 +100,7 @@ bool assemble_file(const char *base_path)
 
         /* Always write .ob on success */
         if ((fp = fopen(path_ob, "w"))) { output_write_ob(fp, &p1, &p2); fclose(fp); }
+
         /* Write .ext/.ent only if they have content */
         if (p2.ext_len > 0 && (fp = fopen(path_ext, "w"))) { output_write_ext(fp, &p2); fclose(fp); }
         if (p2.ent_len > 0 && (fp = fopen(path_ent, "w"))) { output_write_ent(fp, &p2); fclose(fp); }

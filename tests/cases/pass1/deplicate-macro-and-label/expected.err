@@ -1,2 +1,2 @@
 /mnt/hgfs/Assembler/tests/cases/pass1/deplicate-macro-and-label/test.as:2: label 'HELLO' conflicts with macro name
-Assembly failed for /mnt/hgfs/Assembler/tests/cases/pass1/deplicate-macro-and-label/test.as
+Assembly failed for {TEST_AS}
